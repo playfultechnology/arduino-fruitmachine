@@ -12,4 +12,4 @@ The feature reel uses a stepper motor with 12 positions, three lamps, and an opt
 
 ## LED Display
 The LED display has 5 interlocking common cathode 7-segment LED displays
-![Fruit Machine LED Displays](FruitMachineLED/HC74595 and UDN2981 FruitMachine LED_bb.jpg?raw=true "Fruit Machine LED Display")
+![Fruit Machine LED Displays](FruitMachineLED/FruitMachineLED_bb.jpg?raw=true "Fruit Machine LED Display")
