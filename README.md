@@ -2,8 +2,8 @@
 This repository contains code listings, wiring diagrams, and other reference information relating to a project in which I disassembled a fruit machine into its various constituent components and then rebuilt them back together using an Arduino microprocessor as a controller.
 Accompanying videos can be found at https://www.youtube.com/playlist?list=PLogiUurtMYtRenE8BooiE4FDIyxuIyZQj
 
-![Fruit Machine](FruitMachine.png?raw=true "Fruit Machine")
-<img src="https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/d5c05b58d625fce697c9b50bb38bf21852ebf172/FruitMachine.png" width="100" height="100">
+<!-- ![Fruit Machine](FruitMachine.png?raw=true "Fruit Machine") -->
+<img src="https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/d5c05b58d625fce697c9b50bb38bf21852ebf172/FruitMachine.png" width="394" height="902">
 
 
 ## Feature Reel
