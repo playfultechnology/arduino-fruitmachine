@@ -3,6 +3,7 @@ This repository contains code listings, wiring diagrams, and other reference inf
 Accompanying videos can be found at https://www.youtube.com/playlist?list=PLogiUurtMYtRenE8BooiE4FDIyxuIyZQj
 
 ![Fruit Machine](FruitMachine.png?raw=true "Fruit Machine")
+<img src="https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/d5c05b58d625fce697c9b50bb38bf21852ebf172/FruitMachine.png" width="100" height="100">
 
 
 ## Feature Reel
