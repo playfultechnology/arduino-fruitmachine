@@ -11,5 +11,7 @@ The feature reel uses a stepper motor with 12 positions, three lamps, and an opt
 
 
 ## LED Display
-The LED display has 5 interlocking common cathode 7-segment LED displays
+The primary LED display is formed from five interlocking 1.8" common cathode 7-segment LED displays - datasheet can be found at  http://www.farnell.com/datasheets/99300.pdf
+To use the displays, I'm sourcing current into the anodes of each segment using a UDN2981 high-side darlington transistor array (the channels of the UDN2981, corresponding to the segments to be lit, are set by a 74HC595 shift register). The segments of all the displays are wired together, and the particular digit to be lit is selected by grounding the common cathode of that digit through a ULN2803 low-side darlington transistor array.
+
 ![Fruit Machine LED Displays](FruitMachineLED/FruitMachineLED_bb.jpg?raw=true "Fruit Machine LED Display")
