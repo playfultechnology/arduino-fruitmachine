@@ -23,5 +23,10 @@ Update:
 
 
 ## Lamps
-The lamps were attached to a long cable harness, each sharing a common ground and their own individual 12V supply. To switch 12V to each lamp individually, I used a MIC5891 chip, which combines the functionality of a shift register and a high-side driver, able to source current of <50V@500mA to 8 channels. In hindsight, I could have also used this chip in place of the 74HC595 and UDN2981 in the LED display too.
+The incandescent lamps were attached to a long cable harness, each sharing a common ground and their own individual 12V supply. To switch 12V to each lamp individually, I used a MIC5891 chip, which combines the functionality of a shift register and a high-side driver, able to source current of <50V@500mA to 8 channels. In hindsight, I could have also used this chip in place of the 74HC595 and UDN2981 in the LED display too.
 ![Fruit Machine Lamps](https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/master/FruitMachineLamps/FruitMachineLamps_bb.jpg?raw=true "Fruit Machine Lamps")
+
+
+## Illuminated Buttons
+The original buttons, like the lamps, were illuminated with individual 12V incandescent bulbs, sharing a common ground and individually switched 12V supply wires. To facilitate easier wiring and greater functionality, I decided to replace these with PL9823 LEDs. PL9823s are similar to common "Neopixel" or WS2812 LEDs, in that they are indiviudally-addressable, RGB LEDs, and any number of them can be chained together in a long series controlled by only a single data pin on an Arduino. However, unlike Neopixels which commonly come supplied on a strip, PL9823s are individual LEDs supplied in a 5mm form factor, just like a regular LED (except with 4 pins, not 2).
+![Illuminated Fruit Machine Buttons](https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/master/FruitMachineButtons/FruitMachineButtons_bb.jpg?raw=true "Illuminated Fruit Machine Buttons")
