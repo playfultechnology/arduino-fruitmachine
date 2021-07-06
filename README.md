@@ -16,6 +16,15 @@ The reels work the same way as the feature reel, except that each has 16 positio
 ![Fruit Machine Feature Reel](FruitMachineReels/FruitMachineReels_bb.jpg?raw=true "Fruit Machine Reels")
 
 
+## Hopper
+There are two commonly-used interfaces for coin hoppers - serial and parallel. 
+### Parallel interface
+The parallel interface is easy to understand - the hopper simply dispenses coins as soon as, and far as long as, 24V power is connected. A coin counter output pin is connected to ground every time a coin exits the hopper, which can be used to cut power once sufficient coins have been dispensed.
+### Serial interface
+A serial interface called CCTalk was introduced to make universal communication standard with various monetary devices in machines - note validators, coin mechs, and hoppers. The CCTalk standard defines a set of messages that are sent over a serial connection (you can view the documentation here: http://www.coinoperatorshop.com/media/products/manual/cctalk/cctalk44-2.pdf).
+
+![Fruit Machine Hopper](FruitMachineHopper/FruitMachineHopper_bb.jpg?raw=true "Fruit Machine Hopper")
+
 ## LED Display
 The primary LED display is formed from five interlocking 1.8" common cathode 7-segment LED displays - datasheet can be found at  http://www.farnell.com/datasheets/99300.pdf
 To use the displays, I'm sourcing current into the anodes of each segment using a UDN2981 high-side darlington transistor array (the channels of the UDN2981, corresponding to the segments to be lit, are set by a 74HC595 shift register). The segments of all the displays are wired together, and the particular digit to be lit is selected by grounding the common cathode of that digit through a ULN2803 low-side darlington transistor array. The ULN2803 too is set by a 74HC595 which is daisy-chained to the first, meaning all 5 digit displays can be set using just three pins on the Arduino.
