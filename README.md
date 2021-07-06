@@ -48,5 +48,5 @@ The original buttons, like the lamps, were illuminated with individual 12V incan
 
 ## Counters
 The counters are the most simple electronic components. 
-![Counters](FruitMachineCoinCounter/FruitMachineCoinCounter_bb?raw=true "Fruit Machine Coin Counter")
+![Counters](FruitMachineCoinCounter/FruitMachineCoinCounter_bb.jpg?raw=true "Fruit Machine Coin Counter")
 
