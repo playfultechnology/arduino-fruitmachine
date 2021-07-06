@@ -44,3 +44,9 @@ The incandescent lamps were attached to a long cable harness, each sharing a com
 ## Illuminated Buttons
 The original buttons, like the lamps, were illuminated with individual 12V incandescent bulbs, sharing a common ground and individually switched 12V supply wires. To facilitate easier wiring and greater functionality, I decided to replace these with PL9823 LEDs. PL9823s are similar to common "Neopixel" or WS2812 LEDs, in that they are indiviudally-addressable, RGB LEDs, and any number of them can be chained together in a long series controlled by only a single data pin on an Arduino. However, unlike Neopixels which commonly come supplied on a strip, PL9823s are individual LEDs supplied in a 5mm form factor, just like a regular LED (except with 4 pins, not 2).
 ![Illuminated Fruit Machine Buttons](https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/master/FruitMachineButtons/FruitMachineButtons_bb.jpg?raw=true "Illuminated Fruit Machine Buttons")
+
+
+## Counters
+The counters are the most simple electronic components. 
+![Counters](FruitMachineCoinCounter/FruitMachineCoinCounter_bb?raw=true "Fruit Machine Coin Counter")
+
