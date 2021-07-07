@@ -8,11 +8,11 @@
  */
 // DEFINES
 // The total number of steps required for one complete revolution
-// This reel has a (common) step angle of 7.5°, which means 48 full steps
-#define NUM_STEPS 48
+// This reel has a (common) step angle of 7.5°, which means 48 full steps  (for 1.8' = 200 steps)
+#define NUM_STEPS 200
 // There are 12 different values on the reel - numbers 1-12. So, define the number
 // of steps between each value as NUM_STEPS / 12
-#define STEPS_PER_VALUE 4
+#define STEPS_PER_VALUE 10
 
 // INCLUDES
 // Not strictly necessary, but the AccelStepper library provides nice utility functions for acceleration/deceleration
@@ -43,9 +43,9 @@ void setup() {
 
 void CalibrateReel(){
   // Set the stepper to a slow speed
-  stepper.setMaxSpeed(40);
+  stepper.setMaxSpeed(1000);
   // Make at most one complete rotation from the current position
-  stepper.move(NUM_STEPS);
+  stepper.move(NUM_STEPS*4);
   // Advance one step at a time until the sensor is obstructed
   while(!digitalRead(sensorPin)) {
     stepper.run();
