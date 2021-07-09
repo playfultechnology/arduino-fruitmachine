@@ -37,7 +37,7 @@ Update:
 
 
 ## Lamps
-The incandescent lamps were attached to a long cable harness, each sharing a common ground and their own individual 12V supply. To switch 12V to each lamp individually, I used a MIC5891 chip, which combines the functionality of a shift register and a high-side driver, able to source current of <50V@500mA to 8 channels. In hindsight, I could have also used this chip in place of the 74HC595 and UDN2981 in the LED display too.
+The incandescent lamps were arranged into groups around the machine, attached to long cable harnesses. In some machines, the lamps in a group all shared a common ground but each lamp had their own individual 12V wire ("high-side" switching). In other machines, the lamps shared a common 12V supply, but had their own unique ground connection ("low-side" switching). The following circuits demonstrate how to wire a group of eight 12V lamps to be individually-switched using a power shift register - using a TPIC6B595 for low-side switching, or MIC5891 for high-side switching.
 ![Fruit Machine Lamps](https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/master/FruitMachineLamps/FruitMachineLamps_bb.jpg?raw=true "Fruit Machine Lamps")
 
 
