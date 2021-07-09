@@ -2,12 +2,13 @@
 This repository contains code listings, wiring diagrams, and other reference information relating to a project in which I disassembled a fruit machine into its various constituent components and then rebuilt them back together using an Arduino microprocessor as a controller.
 Accompanying videos can be found at https://www.youtube.com/playlist?list=PLogiUurtMYtRenE8BooiE4FDIyxuIyZQj
 
+** UPDATE JUNE 2021 : I have now followed this procedure with four different fruit machines, and have updated the sections below to reflect the variety of components I have discovered between them **
+
 <!-- ![Fruit Machine](FruitMachine.png?raw=true "Fruit Machine") -->
 <img src="https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/d5c05b58d625fce697c9b50bb38bf21852ebf172/FruitMachine.png" width="200" height="458">
 
-
 ## Feature Reel
-The feature reel uses a stepper motor with 12 positions, three lamps, and an opto-sensor. 
+The feature reel is a single standalone reel, which makes it slightly easier to reverse-engineer than the main reels, which typically occur in a connected bank of three or four. It consists of a stepper motor, lamps, and an opto-sensor. Stepper motors may be 12V (in which they can be driven by a4988, DRV8825 stepper motor drivers of a CNC shield) or 24V (in which case they might need an L293D motor driver shield, as shown below)  
 ![Fruit Machine Feature Reel](FruitMachineFeatureReel/FeatureReel_Assembly_bb.jpg?raw=true "Fruit Machine Reel Assembly")
 
 
@@ -15,6 +16,10 @@ The feature reel uses a stepper motor with 12 positions, three lamps, and an opt
 The reels work the same way as the feature reel, except that each has 16 positions, three lamps, and an opto-sensor. Rather than directly wire to a motor driver, I used a RAMPS shield, which provides a convenient way to interface with stepper motor drivers (A4988, DRV8825, TMC2209 or similar)
 ![Fruit Machine Feature Reel](FruitMachineReels/FruitMachineReels_bb.jpg?raw=true "Fruit Machine Reels")
 
+
+## Optosensors (A.K.A. Photosensors, Slotted Optical Switches etc.)
+These are the little devices that are used to detect the position of the reels - they consist of a IR transmitter pointing at an IR receiver, with a small gap between them (~1cm). The reels have a small tab protuding from them at one point, which blocks the IR beam as it passes the gap in the sensor, making it possible to know the rotation of the reel at that point. I have encountered several variations of adaptor board which attach the opto-sensors to the reel assmebly, as follows:
+![Fruit Machine Opto Sensors](FruitMachineOptoSensors/FruitMachineOptoSensors_bb.jpg?raw=true "Fruit Machine Opto Sensors")
 
 ## Hopper
 There are two commonly-used interfaces for coin hoppers - serial and parallel. 
