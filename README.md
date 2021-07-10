@@ -45,8 +45,14 @@ Update:
 The incandescent lamps were arranged into groups around the machine, attached to long harnesses consisting of cable-tied wires, rather resembling a spinal column. 
 ![Fruit Machine Lamp Wiring](https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/master/FruitMachineLamps/FruitMachineLamps_1.jpg "Fruit Machine Lamp Wiring")
 
-Although the lamps themselves do not have polarity, the bulb holders typically have had a small inline diode inserted the housing, meaning they have a distinct "positive" and "negative" side. As such, wiring them is much the same as wiring 12V LEDs.
-In some machines, the lamps in a group all shared a common ground but each lamp had their own individual 12V wire ("high-side" switching). In other machines, the lamps shared a common 12V supply, but had their own unique ground connection ("low-side" switching). The following circuits demonstrate how to wire a group of eight 12V lamps to be individually-switched using a power shift register - using a TPIC6B595 for low-side switching, or MIC5891 for high-side switching.
+Although the lamps themselves do not have polarity, the bulb holders typically have had a small inline diode inserted the housing, meaning they have a distinct "positive" and "negative" side. As such, wiring them is much the same as wiring 12V LEDs. Note that the colouring of the wires does not necessarily follow any standard convention: in the following photograph, note the line signifying the cathode of the diode shows the *red* wire is GND, while the *grey* wire is +12V.  
+![Fruit Machine Lamp Wiring](https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/master/FruitMachineLamps/FruitMachineLamps_2.jpg "Fruit Machine Lamp Wiring")
+
+In some machines, the lamps in a group all shared a common ground but each lamp has their own individual 12V wire ("high-side" switching). 
+In other machines, the lamps share a common 12V supply, but each lamp has their own unique ground connection ("low-side" switching), as in the photograph below. 
+![Fruit Machine Lamp Wiring](https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/master/FruitMachineLamps/FruitMachineLamps_3.jpg "Fruit Machine Lamp Wiring")
+
+The following circuits demonstrate how to wire a group of eight 12V lamps to be individually-switched using a power shift register - using a TPIC6B595 for low-side switching, or MIC5891 for high-side switching.
 ![Fruit Machine Lamps](https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/master/FruitMachineLamps/FruitMachineLamps_bb.jpg?raw=true "Fruit Machine Lamps")
 
 
