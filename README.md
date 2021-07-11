@@ -1,8 +1,8 @@
 # arduino-fruitmachine
-This repository contains code listings, wiring diagrams, and other reference information relating to a project in which I disassembled a fruit machine into its various constituent components and then rebuilt them back together using an Arduino microprocessor as a controller.
+This repository contains code listings, wiring diagrams, notes, and other reference information relating to my experiences of disassembling old (generally broken, sold as "for spares for repairs") fruit machines into their various constituent components, and then rebuilding their functionality using an Arduino microprocessor as a controller.
 Accompanying videos can be found at https://www.youtube.com/playlist?list=PLogiUurtMYtRenE8BooiE4FDIyxuIyZQj
 
-** UPDATE JUNE 2021 : I have now followed this procedure with four different fruit machines, and have updated the sections below to reflect the variety of components I have discovered between them **
+As of July 2021, I have now followed this process with four different machines of different eras and manufacturers (Bell Fruit "Snakes and Ladders", Electrocoin "Magic 100", Global "Tuppenny Nudger" and Global "Phoenix Knights"). Each machine has had different components, features, and design, and I've tried to update the notes below to cover the variety I've found.
 
 <!-- ![Fruit Machine](FruitMachine.png?raw=true "Fruit Machine") -->
 <img src="https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/d5c05b58d625fce697c9b50bb38bf21852ebf172/FruitMachine.png" width="200" height="458">
@@ -42,7 +42,17 @@ Update:
 
 
 ## Lamps
-The incandescent lamps were arranged into groups around the machine, attached to long cable harnesses. In some machines, the lamps in a group all shared a common ground but each lamp had their own individual 12V wire ("high-side" switching). In other machines, the lamps shared a common 12V supply, but had their own unique ground connection ("low-side" switching). The following circuits demonstrate how to wire a group of eight 12V lamps to be individually-switched using a power shift register - using a TPIC6B595 for low-side switching, or MIC5891 for high-side switching.
+The incandescent lamps were arranged into groups around the machine, attached to long harnesses consisting of cable-tied wires, rather resembling a spinal column. 
+![Fruit Machine Lamp Wiring](https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/master/FruitMachineLamps/FruitMachineLamps_1.jpg "Fruit Machine Lamp Wiring")
+
+Although the lamps themselves do not have polarity, the bulb holders typically have had a small inline diode inserted the housing, meaning they have a distinct "positive" and "negative" side. As such, wiring them is much the same as wiring 12V LEDs. Note that the colouring of the wires does not necessarily follow any standard convention: in the following photograph, note the line signifying the cathode of the diode shows the *red* wire is GND, while the *grey* wire is +12V.  
+![Fruit Machine Lamp Wiring](https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/master/FruitMachineLamps/FruitMachineLamps_2.jpg "Fruit Machine Lamp Wiring")
+
+In some machines, the lamps in a group all shared a common ground but each lamp has their own individual 12V wire ("high-side" switching). 
+In other machines, the lamps share a common 12V supply, but each lamp has their own unique ground connection ("low-side" switching), as in the photograph below. 
+![Fruit Machine Lamp Wiring](https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/master/FruitMachineLamps/FruitMachineLamps_3.jpg "Fruit Machine Lamp Wiring")
+
+The following circuits demonstrate how to wire a group of eight 12V lamps to be individually-switched using a power shift register - using a TPIC6B595 for low-side switching, or MIC5891 for high-side switching.
 ![Fruit Machine Lamps](https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/master/FruitMachineLamps/FruitMachineLamps_bb.jpg?raw=true "Fruit Machine Lamps")
 
 
