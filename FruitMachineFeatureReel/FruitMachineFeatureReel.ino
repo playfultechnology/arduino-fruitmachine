@@ -6,7 +6,9 @@
  * top reel assembly of a Bell Fruit "Snakes and Ladders" fruit machine.
  * https://www.johnsonelectric.com/en/product-technology/motion/stepper-motors/rotary-stepper-motors
  * 
- * See https://wiki.keyestudio.com/images/a/ad/KS0160_%E5%BC%95%E8%84%9A%E5%9B%BE.jpg if using a CNC shield
+ * If using an Arudino UNO "CNC shield", heck the following for pin mapping and availability:
+ * https://wiki.keyestudio.com/Ks0160_keyestudio_CNC_Shield_V3
+ * https://blog.protoneer.co.nz/arduino-cnc-shield-v3-00-assembly-guide/
  */
 // DEFINES
 // The total number of steps required for one complete revolution of the motor
