@@ -5,14 +5,19 @@
  * Tested with a Saia-Burgess 6-wire 50Ω/ph UFD23N07RAZ18 stepper motor, recovered from the
  * top reel assembly of a Bell Fruit "Snakes and Ladders" fruit machine.
  * https://www.johnsonelectric.com/en/product-technology/motion/stepper-motors/rotary-stepper-motors
+ * 
+ * See https://wiki.keyestudio.com/images/a/ad/KS0160_%E5%BC%95%E8%84%9A%E5%9B%BE.jpg if using a CNC shield
  */
 // DEFINES
-// The total number of steps required for one complete revolution
-// This reel has a (common) step angle of 7.5°, which means 48 full steps  (for 1.8' = 200 steps)
-#define NUM_STEPS 200
+// The total number of steps required for one complete revolution of the motor
+// Common values for motors are: 
+// - 7.5° step angle = 48 steps
+// - 1.8° step angle = 200 steps
+#define NUM_STEPS 48
 // There are 12 different values on the reel - numbers 1-12. So, define the number
-// of steps between each value as NUM_STEPS / 12
-#define STEPS_PER_VALUE 10
+// of steps between each value as NUM_STEPS / 12.
+// For 20 values on a reel with 200 steps, STEPS_PER_VALUE 10 etc.
+#define STEPS_PER_VALUE 3
 
 // INCLUDES
 // Not strictly necessary, but the AccelStepper library provides nice utility functions for acceleration/deceleration
@@ -21,29 +26,44 @@
 
 // CONSTANTS
 // The sensor sends a HIGH signal when it is blocked, which occurs when the 12 is facing the front
-const byte sensorPin = 2;
+const byte sensorPin = 9;
 
 // GLOBALS
-// Define a stepper and the pins it will use
-AccelStepper stepper(AccelStepper::FULL4WIRE, 7, 8, 9, 10);
+// If using a motor driver (e.g. L298N), use FULL4WIRE constructor specifying pins A1, A2, B1, B2
+// AccelStepper stepper(AccelStepper::FULL4WIRE, 7, 8, 9, 10);
+// If using a stepper driver (e.g. A4988), use DRIVER constructor with stepPin, dirPin
+AccelStepper stepper(AccelStepper::DRIVER, 2, 5);
 // The number on the reel that we'd like to display
 int targetValue;
 
 // Initial setup
 void setup() {
   // Start a serial connection
-  Serial.begin(9600);
+  Serial.begin(115200);
+  Serial.println(__FILE__ __DATE__);
+
+  // Note - if using a CNC shield, the stepper drivers need to be enabled. Sometimes, the enabled pin is automatically
+  // pulled to ground by a jumper but, if not, write a LOW signal to the enable pin. 
+  pinMode(8, OUTPUT);
+  digitalWrite(8, LOW);
+  
   // Set the sensor pin as an input
   pinMode(sensorPin, INPUT);
-  // Stepper motor speed and acceleration
-  stepper.setMaxSpeed(100);
-  stepper.setAcceleration(100);
+  // Stepper motor speed (steps/sec) and acceleration (steps per second^2)
+  stepper.setMaxSpeed(50);
+  stepper.setAcceleration(500);
+
+  for(int i=i;i<1000;i++){
+    stepper.runSpeed();
+  }
+
   CalibrateReel();
 }
 
 void CalibrateReel(){
+  Serial.println("Calibrating");
   // Set the stepper to a slow speed
-  stepper.setMaxSpeed(1000);
+  stepper.setMaxSpeed(50);
   // Make at most one complete rotation from the current position
   stepper.move(NUM_STEPS*4);
   // Advance one step at a time until the sensor is obstructed
@@ -62,8 +82,9 @@ void loop() {
   if(Serial.available() > 0){
     // Read any integer sent
     targetValue = Serial.parseInt();
-    // Sending a zero re-calibrates the reel
-    if(targetValue == 0){
+    // Sending 999 re-calibrates the reel
+    // (don't use 0 as that is the value parseInt() returns from reading, e.g. a linebreak)
+    if(targetValue == 999){
       CalibrateReel();
       return;
     }   
