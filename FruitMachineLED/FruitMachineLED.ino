@@ -10,8 +10,8 @@
 
 // CONSTANTS
 // Pins connected to 74HC595 shift register(s)
-const int latchPin = 8;
-const int clockPin = 12;
+const int latchPin = 10;
+const int clockPin = 13;
 const int dataPin = 11;
 
 // Return the binary representation of the supplied character
@@ -78,7 +78,7 @@ void loop() {
 
   // Decide what value to write on the display by calling the appropriate function to set "valueToDisplay"
 
-  
+  /*
   // To periodically set a new value, first check the current timestamp
   unsigned long now = millis();
   // If sufficient time has elapsed since last time the value was changed
@@ -90,21 +90,22 @@ void loop() {
     // Record the current time
     lastTimeNumberSet = now;
   }
-  
+  */
   // To continuously set a new value, e.g. counting up every second
   // CountUp();
 
   // Loop over every display
-  for(int i=0; i<5; i++){
+  for(int i=0; i<4; i++){
     // Hold the latch pin low
     digitalWrite(latchPin, LOW);
     // First, shift in the value that determines which display cathodes will be grounded by the ULN2803
-    shiftOut(dataPin, clockPin, MSBFIRST, 1<<(7-i));
+    shiftOut(dataPin, clockPin, MSBFIRST, getSegments(valueToDisplay[i]));    
+    //shiftOut(dataPin, clockPin, MSBFIRST, getSegments(valueToDisplay[i]));
     // Then shift in the value of which segment anodes will be lit by the UDN2981
-    shiftOut(dataPin, clockPin, MSBFIRST, getSegments(valueToDisplay[i]));
+    shiftOut(dataPin, clockPin, MSBFIRST, 1<<i);
     // Release the latch
     digitalWrite(latchPin, HIGH);
     // Set this as large as possible before flickering occurs
-    delay(3);
+    delay(5);
   }
 }
