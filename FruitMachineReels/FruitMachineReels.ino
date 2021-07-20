@@ -145,23 +145,26 @@ void CalibrateReels(){
     // Store the current max speed
     float maxSpeed = steppers[i].maxSpeed();
     
-    // Set the stepper to a slow speed
+    // Set the stepper to a slower speed for calibration if desired
    // steppers[i].setMaxSpeed(24);
 
     // Set a target point several rotations away from the current position
     steppers[i].move(NUM_STEPS*4);
 
-    // numTriggers is the number of times the reel tab crossed the opto-sensor
+    // numTriggers is the number of times the reel tab crosses the opto-sensor
     int numTriggers = 0;
 
     // Process until we reach the target
     while(steppers[i].distanceToGo() != 0) {
       steppers[i].run();
       optoSensors[i].update();
+      // Most opto-sensors go HIGH when an obstruction is detected
       if(optoSensors[i].rose()) {
         numTriggers++;
       }
+      // When the tab crosses through the sensor for the third time
       if(numTriggers > 2){
+        // Zero everything for this reel
         steppers[i].setCurrentPosition(0);
         steppers[i].setSpeed(0);
         steppers[i].move(0);
