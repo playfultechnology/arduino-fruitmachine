@@ -40,6 +40,8 @@ Update:
 
 ![Fruit Machine LED Displays](https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/d5c05b58d625fce697c9b50bb38bf21852ebf172/FruitMachineLED/FruitMachineLED_bb.jpg?raw=true "Fruit Machine LED Display")
 
+## VFD Display
+https://picaxeforum.co.uk/threads/using-spi-serial-vfds-from-fruit-machines-with-picaxe-comprehensive-code-examples.22552/
 
 ## Lamps
 The incandescent lamps were arranged into groups around the machine, attached to long harnesses consisting of cable-tied wires, rather resembling a spinal column. 
