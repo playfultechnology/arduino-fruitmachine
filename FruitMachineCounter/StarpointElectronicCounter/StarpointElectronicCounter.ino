@@ -18,35 +18,13 @@ byte response[8];
 void setup() {
   Serial.begin(115200);
 
-
   pinMode(11, OUTPUT);
   pinMode(13, OUTPUT);
-  /*
-  while(true){
-    digitalWrite(13, HIGH);
-    for(int i=0;i<5;i++){
-    digitalWrite(11, HIGH);
-    delay(1);
-    digitalWrite(11, LOW);
-    delay(1);
-    }
-    delay(10);
-    digitalWrite(13, LOW);
-        for(int i=0;i<5;i++){
-    digitalWrite(11, HIGH);
-    delay(1);
-    digitalWrite(11, LOW);
-    delay(1);
-    }
-    delay(10);
-  }
-*/
-
-  
-
+ 
   // Start the SPI interface
   SPI.begin();
 
+/*
   // According to "Communications Interface" (p.8)
   // Uses SPI Mode 2, MSB, Clock speed between 100Hz - 5kHz
   SPI.beginTransaction(SPISettings(100, MSBFIRST, SPI_MODE2));
@@ -59,19 +37,15 @@ void setup() {
   SPI.transfer(0x00); // DCNT - number of databytes following (not including CHKSUM)
   SPI.transfer(0x54); // CHECKSUM is lower 8 bits of sum of all preceding bytes
 
+  SPI.endTransaction();
+
   // Clear the response buffer
   memset(response, 0, sizeof(response));
   // Then fill it with 4 byte response
   for (int i=0; i<4; i++) {
     response[i] = SPI.transfer(0x00); // Dummy value just to receive SPI response
   }
-
-  // Release SPI interface
-  //SPI.endTransaction();
-  //SPI.end();
-
-  // Print the response
-  printBuffer();
+*/  
 }
 
 void printBuffer() {
@@ -83,48 +57,48 @@ void printBuffer() {
 }
 
 void loop() {
-
-  // According to "Communications Interface" (p.8)
-  // Uses SPI Mode 2, MSB, Clock speed between 100Hz - 5kHz
-  //SPI.beginTransaction(SPISettings(200, MSBFIRST, SPI_MODE2));
-
-
+  // Set clock line to idle HIGH
   digitalWrite(13, HIGH);
 
-  // Send a command - see "Command Format From Host" (p.10) for general structure
-  // This is "r. <54> Cycle Counter Display" (p.19)
-  // Which should cause counter to flash through all counter values
-  SPI.transfer(0x54); // CMD
-  SPI.transfer(0x02); // ID starts at 00 and increments with each message sent
-  SPI.transfer(0x00); // DCNT - number of databytes following (not including CHKSUM)
-  SPI.transfer(0x56); // CHECKSUM is lower 8 bits of sum of all preceding bytes
+  // According to "Communications Interface" (p.8)
+  // Uses SPI Mode 2, MSB, Clock speed between 100Hz - 5kHz  
+  SPI.beginTransaction(SPISettings(1000, MSBFIRST, SPI_MODE2));
 
 /*
   // Send a command - see "Command Format From Host" (p.10) for general structure
-  // This is "r. <54> Cycle Counter Display" (p.19)
-  // Which should cause counter to flash through all counter values
+  // This is "r. <21> Request Market Type"
+  // as shown in example on p.29
   SPI.transfer(0x21); // CMD
   SPI.transfer(0x01); // ID starts at 00 and increments with each message sent
   SPI.transfer(0x00); // DCNT - number of databytes following (not including CHKSUM)
   SPI.transfer(0x22); // CHECKSUM is lower 8 bits of sum of all preceding bytes
 */
+  // Send a command - see "Command Format From Host" (p.10) for general structure
+  // This is "r. <54> Cycle Counter Display" (p.19)
+  // Which should cause counter to flash through all counter values
+  SPI.transfer(0x54); // CMD
+  SPI.transfer(0x00); // ID starts at 00 and increments with each message sent
+  SPI.transfer(0x00); // DCNT - number of databytes following (not including CHKSUM)
+  SPI.transfer(0x54); // CHECKSUM is lower 8 bits of sum of all preceding bytes
 
+
+
+/*
   // Clear the response buffer
   memset(response, 0, sizeof(response));
   // Then fill it with 4 byte response
   for (int i=0; i<4; i++) {
     response[i] = SPI.transfer(0x00); // Dummy value just to receive SPI response
   }
-
+*/
+  // Not sure if this is strictly required - if we're only communicating with a single device,
+  // can probably just open a single transaction and leave it open
+  SPI.endTransaction();
+  // Set clock HIGH again
   digitalWrite(13, HIGH);
 
+  // Print the response
+  printBuffer();
 
-  // Release SPI interface
-  // SPI.endTransaction();
-  // SPI.end();
-
-
-
-  delay(1000);
-  
+  delay(1000);  
 }

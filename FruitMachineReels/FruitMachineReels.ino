@@ -1,10 +1,6 @@
 /**
  * Arduino Fruit Machine Reel Controller
  * Copyright (c) 2021 Playful Technology
- * 
- * If using an Arudino UNO "CNC shield", heck the following for pin mapping and availability:
- * https://wiki.keyestudio.com/Ks0160_keyestudio_CNC_Shield_V3
- * https://blog.protoneer.co.nz/arduino-cnc-shield-v3-00-assembly-guide/
  */
 // DEFINES
 // The total number of steps required for one complete revolution of the motor
@@ -12,11 +8,16 @@
 // - 7.5° step angle = 48 steps
 // - 1.8° step angle = 200 steps
 #define NUM_STEPS 48
-// For 16 values on a reel with 48 steps, STEPS_PER_VALUE 3 etc.
+// STEPS_PER_VALUE is the number of steps between adjacent symbols on the reel
+// Calculated as NUM_STEPS / (Number of Symbols)
+// For 16 values on a 7.5° step angle reel (48 steps), STEPS_PER_VALUE 3 etc.
+// For 12 values on a 7.5° step angle reel (48 steps), STEPS_PER_VALUE 4 etc.
+// For 20 values on a  1.8° step angle reel (200 steps), STEPS_PER_VALUE 10 etc.
 #define STEPS_PER_VALUE 3
-// What sort of shield is being used?
+// What sort of shield is being used? USE_CNCSHIELD or USE_RAMPS
 #define USE_CNCSHIELD
-// Pin definitions for Arduino MEGA with RAMPS v1.4 shield, taken from Marlin pins.h 
+// Pin definitions for Arduino MEGA with RAMPS v1.4 shield
+// See https://github.com/MarlinFirmware/Marlin/blob/2.0.x/Marlin/src/pins/ramps/pins_RAMPS.h
 #ifdef USE_RAMPS
   #define X_STEP_PIN         54
   #define X_DIR_PIN          55
@@ -50,7 +51,9 @@
   #define TEMP_0_PIN         13   // ANALOG NUMBERING
   #define TEMP_1_PIN         14   // ANALOG NUMBERING
 #endif
-// Pin definitions for Arduino UNO with CNC Shield v3 from https://wiki.keyestudio.com/Ks0160_keyestudio_CNC_Shield_V3
+// Pin definitions for Arduino UNO with CNC Shield v3
+// see https://wiki.keyestudio.com/Ks0160_keyestudio_CNC_Shield_V3
+// see https://blog.protoneer.co.nz/arduino-cnc-shield-v3-00-assembly-guide/
 #ifdef USE_CNCSHIELD
   #define X_STEP_PIN          2
   #define X_DIR_PIN           5
@@ -81,6 +84,9 @@
 
 // CONSTANTS
 const byte numReels = 3;
+// Use the MIN END STOP pins as inputs
+// NOTE IF USING THE CNC SHIELD IT HAS 4 DRIVERS BUT ONLY SUPPORTS 3 ENDSTOPS, so using HOLD_PIN instead
+const byte sensorPins[4] = {X_MIN_PIN, Y_MIN_PIN, Z_MIN_PIN, HOLD_PIN};
 
 // INCLUDES
 // See: http://www.airspayce.com/mikem/arduino/AccelStepper/
@@ -95,28 +101,21 @@ AccelStepper stepperY(AccelStepper::DRIVER, Y_STEP_PIN, Y_DIR_PIN);
 AccelStepper stepperZ(AccelStepper::DRIVER, Z_STEP_PIN, Z_DIR_PIN);
 AccelStepper stepperE(AccelStepper::DRIVER, E_STEP_PIN, E_DIR_PIN);
 AccelStepper steppers[4] = {stepperX, stepperY, stepperZ, stepperE};
-
-
-bool isSpinning = false;
-
-// Use the MIN END STOP pins as inputs
-// NOTE IF USING THE CNC SHIELD IT HAS 4 DRIVERS BUT ONLY SUPPORTS 3 ENDSTOPS!
-int sensors[4] = {X_MIN_PIN, Y_MIN_PIN, Z_MIN_PIN, Z_MIN_PIN};
-
-Bounce bounce = Bounce();
-
-// The number on the reel that we'd like to display
-int targetValues[4];
+// Array of Bounce objects to help read each time reel tab spins past the opto-sensor
+Bounce optoSensors[4] = {};
 
 // Initial setup
 void setup() {
   // Start a serial connection
   Serial.begin(115200);
+  Serial.setTimeout(50); // Don't wait for ages for input
   Serial.println(__FILE__ __DATE__);
 
   Serial.println(F("Send 999 to calibrate"));
-  Serial.println(F("Send 100 to spin"));
-  Serial.println(F("Send 200 to stop"));
+  Serial.println(F("Send 1/2/3/4 to nudge reels up"));
+  Serial.println(F("Send 5/6/7/8 to nudge reels down"));  
+  Serial.println(F("Send 200 for random spin"));  
+  Serial.println(F("Send 300 for winning spin"));
 
   // Note: if using stepper drivers (A4988 etc.), these need to be enabled by pulling the EN pin low. 
   // On some shields, the pin is automatically pulled to GND via a jumper. If not, write a LOW signal to 
@@ -127,40 +126,17 @@ void setup() {
   pinMode(E_ENABLE_PIN, OUTPUT);  digitalWrite(E_ENABLE_PIN, LOW);
   
   // Set the MIN END STOP pins as inputs
-  pinMode(X_MIN_PIN, INPUT);
-  pinMode(Y_MIN_PIN, INPUT);
-  pinMode(Z_MIN_PIN, INPUT);
-
-  bounce.attach(X_MIN_PIN, INPUT);
+  for(int i=0; i<numReels; i++) {
+    optoSensors[i].attach(sensorPins[i], INPUT);
+  }
   
   // Stepper motor speed (steps/sec) and acceleration (steps per second^2)
   // These values need to be tweaked by experimentation!
   for(int i=0;i<numReels;i++){
     steppers[i].setMaxSpeed(60);
-    steppers[i].setAcceleration(500);
+    steppers[i].setAcceleration(150);
   }
 }
-
-void CalibrateReel(int i) {
-  Serial.print(F("Calibrating Reel #"));
-  Serial.println(n);
-
-  // Do three rotations
-  steppers[i].move(NUM_STEPS * 3);
-  steppers[i].setSpeed(50);
-  while(steppers[i].distanceToGo() != 0) {
-    steppers[i].runSpeedToPosition();
-    bounce.update();
-    if(bounce.rose()) {
-      steppers[i].setCurrentPosition(0);
-    }
-  }
-
-}
-
-
-
-
 
 void CalibrateReels(){
   Serial.println(F("Calibrating Reels"));
@@ -170,35 +146,30 @@ void CalibrateReels(){
     float maxSpeed = steppers[i].maxSpeed();
     
     // Set the stepper to a slow speed
-    steppers[i].setMaxSpeed(24);
+   // steppers[i].setMaxSpeed(24);
 
-    // We run the calibration twice for each stepper.
-    // This helps reduce the chance of error in the reel actually starts in the correct position
-    // Make at most one complete rotation from the current position
-    steppers[i].move(NUM_STEPS);
-    // Advance one step at a time until the sensor is obstructed
-    do {
+    // Set a target point several rotations away from the current position
+    steppers[i].move(NUM_STEPS*4);
+
+    // numTriggers is the number of times the reel tab crossed the opto-sensor
+    int numTriggers = 0;
+
+    // Process until we reach the target
+    while(steppers[i].distanceToGo() != 0) {
       steppers[i].run();
-    } while(!digitalRead(sensors[i]));
-    steppers[i].setCurrentPosition(0);
+      optoSensors[i].update();
+      if(optoSensors[i].rose()) {
+        numTriggers++;
+      }
+      if(numTriggers > 2){
+        steppers[i].setCurrentPosition(0);
+        steppers[i].setSpeed(0);
+        steppers[i].move(0);
+        steppers[i].stop();
+        break;
+      }
+    }
 
-    // Then do a half-turn
-    steppers[i].move(NUM_STEPS / 2);
-    do {
-      steppers[i].setSpeed(24);
-      steppers[i].runSpeedToPosition();    
-    } while(steppers[i].distanceToGo() != 0);
-    
-    steppers[i].move(NUM_STEPS);
-    // Advance one step at a time until the sensor is obstructed
-    do {
-      steppers[i].run();
-    } while(!digitalRead(sensors[i]));
-
-    // Stop the motor and declare this the zero position
-    steppers[i].stop();
-    steppers[i].setCurrentPosition(0);
-  
     // Carry on calling run() after stop() - see https://groups.google.com/g/accelstepper/c/i92AHogeAXU?pli=1
     for(int i=0; i<10; i++){
       steppers[i].run();
@@ -207,71 +178,20 @@ void CalibrateReels(){
     // Now that calibration is complete, restore the normal max motor speed
     steppers[i].setMaxSpeed(maxSpeed);
     delay(500);
+
+   // Serial.println(F("Stepper calibrated"));
   }
 }
 
-void RandomSpin() {
-  Serial.println(F("Random Spin"));
-  // Assign a random, increasing target to each reel
-  for(int i=0; i<numReels; i++) {
-    steppers[i].move(random(NUM_STEPS*i,NUM_STEPS*(i+1)));
-  }
-
-  while(true){
-    bool allAtTarget = true;
-    for(int i=0; i<numReels; i++) {
-      steppers[i].run();
-      if(steppers[i].distanceToGo() != 0) { allAtTarget = false; }
-    }
-    if(allAtTarget) break;
-  }
-}
-
-
-
-void SpinReels(){
-  Serial.println(F("Spinning Reels"));
-  for(int i=0; i<numReels; i++) {
-    steppers[i].setSpeed(40);
-  }
-  isSpinning = true;
-}
-
-void StopReel(int n) {
-  steppers[n].setSpeed(0);
-  steppers[n].move(0);
-  steppers[n].stop();
-  steppers[n].runToPosition();
-}
-
-void StopReels(){
-  Serial.println(F("Stopping Reels"));
-  for(int i=0; i<numReels; i++) {
-    StopReel(i); 
-  }
-  isSpinning = false;
-}
-
-void SpinReels(float speed, unsigned long duration) {
-  Serial.println(F("Spinning Reels"));
-  for(int i=0; i<numReels; i++) {
-    steppers[i].setSpeed(speed);
-  }
-  unsigned long startTime = millis();
-  while(millis() < startTime + duration) {
-    for(int i=0; i<numReels; i++) {
-      steppers[i].runSpeed();
-      // Keep the stepper position within the range
-      if(steppers[i].currentPosition() > NUM_STEPS) {
-        steppers[i].setCurrentPosition(steppers[i].currentPosition() - NUM_STEPS); 
-        }
-     }
-  }
+// See https://forum.arduino.cc/t/rounding-an-integer-up-only/350784/3
+long roundUp(long val, long factor) {
+  long rem = val % factor;
+  val -= rem;
+  if (rem > 0) val += factor;
+  return val;
 }
 
 void loop() {
-
-  bounce.update();
 
   // PROCESS INPUT
   // Test whether any input has been received on the serial connection
@@ -284,26 +204,48 @@ void loop() {
       CalibrateReels();
       return;
     }
-    else if(command == 100) {
-      SpinReels();
-      return;
+    else if(command == 1){
+      steppers[0].move(STEPS_PER_VALUE);
+    }
+    else if(command == 2){
+      steppers[1].move(STEPS_PER_VALUE);
+    }
+    else if(command == 3){
+      steppers[2].move(STEPS_PER_VALUE);
+    }
+    else if(command == 4){
+      steppers[3].move(STEPS_PER_VALUE);
+    }
+    else if(command == 5){
+      steppers[0].move(-STEPS_PER_VALUE);
+    }
+    else if(command == 6){
+      steppers[1].move(-STEPS_PER_VALUE);
+    }
+    else if(command == 7){
+      steppers[2].move(-STEPS_PER_VALUE);
+    }
+    else if(command == 8){
+      steppers[3].move(-STEPS_PER_VALUE);
     }
     else if(command == 200) {
-      StopReels();
-      return;
+      // Assign a random, increasing target to each reel
+      for(int i=0; i<numReels; i++) {
+        // Set *relative* position for each target
+        steppers[i].move(random(NUM_STEPS*(i+2),NUM_STEPS*(i+4)));
+      }
     }
     else if(command == 300) {
-      RandomSpin();
-      return;
+      for(int i=0; i<numReels; i++) {
+        // Calculate *absolute* position that is next multiple of whole number of revolutions
+        long target = roundUp(steppers[i].currentPosition(), NUM_STEPS);
+        target += NUM_STEPS * ((i+1)*2);
+        steppers[i].moveTo(target);
+      }
     }
   }
-  // This gets called every frame, and processes any movement of the stepper as necessary
+  // This gets called every frame, and processes any movement of the steppers as necessary
   for(int i=0; i<numReels; i++){
-    if(isSpinning) {
-      steppers[i].runSpeed();
-    }
-    else {
-      steppers[i].run();
-    }
+    steppers[i].run();
   }
 }
