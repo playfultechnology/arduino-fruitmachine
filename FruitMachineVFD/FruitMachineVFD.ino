@@ -1,3 +1,73 @@
+/*
+* https://gutenber3d.wordpress.com/2015/02/15/control-de-vfd-vacuum-fluorescent-display-16f01ua3-samsumg-con-arduino-nano/
+* http://cfile203.uf.daum.net/attach/2504384856450F340E422D
+* https://github.com/DnaX/Samsung_16LF01_VFD
+*/
+/*
+The module is controlled with only three input signals:
+RST: Reset. Active low
+DATA: input pin for data and commands
+SCLK: Clock synchronism signal. Active on falling edge
+
+From "4.8 Signal Interfacing" of 16LF01UA3 datasheet
+1 VCC   2 VCC    +5V DC
+3 N/P   4 N/C    No Pin, Not Connected
+5 N/C   6 N/C    Not Connected
+7 N/C   8 SCLK   Shift Clock (Falling Edge Active)
+9 DATA 10 /RST   Data In line, Reset (Active Low)
+11 GND 12 GND    Ground
+*/
+//////////////////////////////////////////////////// ////////////////
+// Functions to control the display
+// See datasheet 16lF01UA3 samsumg and MSC1937-01 OKI semiconductor
+//////////////////////////////////////////////////// ////////////////
+void ResetDisplay () // Reset the display
+{                             
+  digitalWrite (RST, LOW); // RST low more than 1ms
+  delay (2);		      
+  digitalWrite (RST, HIGH); // RST high for
+  delay (2); //Normal functioning
+}
+void WriteData (byte dat) {
+  for (int i = 7; i> = 0; i--) {
+    // data / byte-type commands. Writing becomes sequential
+    // from most significant bit to least significant bit
+    digitalWrite (DATA, bitRead (dat, i)); // Write the i bit of the dat byte
+    delayMicroseconds (1);
+    digitalWrite (SCLK, HIGH); // SCLK active on falling edge
+    delayMicroseconds (1);
+    digitalWrite (SCLK, LOW); // Falling edge: read the data / command
+    delayMicroseconds (2);
+    digitalWrite (SCLK, HIGH); // SCLK high:
+    delayMicroseconds (1); // Wait for new data / commands
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // https://www.fruitemu.co.uk/ib/index.php?app=forums&module=forums&controller=topic&id=17419
 
