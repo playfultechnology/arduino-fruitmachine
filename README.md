@@ -42,6 +42,7 @@ Update:
 
 ## VFD Display
 https://picaxeforum.co.uk/threads/using-spi-serial-vfds-from-fruit-machines-with-picaxe-comprehensive-code-examples.22552/
+https://www.fruitemu.co.uk/ib/index.php?app=forums&module=forums&controller=topic&id=17419
 
 ## Lamps
 The incandescent lamps were arranged into groups around the machine, attached to long harnesses consisting of cable-tied wires, rather resembling a spinal column. 
