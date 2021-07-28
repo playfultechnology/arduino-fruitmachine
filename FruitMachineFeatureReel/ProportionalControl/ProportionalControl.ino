@@ -39,6 +39,6 @@ void loop()
     location = map(analog_in, 0, 1023, 0, 12) * STEPS_PER_VALUE;
     stepper.moveTo(location);
   }  
-  stepper.setSpeed(20);
+  stepper.setSpeed(40);
   stepper.runSpeedToPosition();
 }

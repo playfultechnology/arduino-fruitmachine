@@ -17,6 +17,63 @@ From "4.8 Signal Interfacing" of 16LF01UA3 datasheet
 9 DATA 10 /RST   Data In line, Reset (Active Low)
 11 GND 12 GND    Ground
 */
+
+
+// INCLUDES
+#include "src/Samsung_16LF01_VFD.h"
+
+// CONSTANTS
+//const byte SCLKpin = 7;
+//const byte RSTpin = 6;
+//const byte DATApin = 5;
+
+// GLOBALS
+// SCLK/DATA/RST
+Samsung_16LF01_VFD vfd(13, 11, 8);
+// The message to be scrolled
+char message[] = "Clued Up! Norwich Casino Escape Room       ";
+// The current value displayed on each digit of the display
+char digits[17] = "                ";
+int i;
+int firstDigit = 0;
+int lastDigit = strlen(message) - 1;
+
+void setup() {
+  /*Initialize the display (number of digits to use, brightness)*/
+  vfd.begin (16,3);
+  
+  /*Test the screen with a welcome static message*/
+  vfd.print("hello!!");
+  delay(999);
+  vfd.clear();
+
+  /*Go to the first digit display*/
+  vfd.setCursor(0);
+}
+void loop() {
+  // Shuffle all the letters up
+  for(i = 0; i < 15; i++) {
+    digits[i] = digits[i + 1];
+  }
+  // Load the next letter on the end of the message
+  digits[15] = message[firstDigit];
+
+  if (firstDigit == lastDigit)
+    firstDigit = 0;
+  else
+    firstDigit = firstDigit + 1;
+
+  for (i = 0; i < 16; i++) {
+    vfd.print(digits[i]);
+
+    /*Workaround, "points" and "commas" are in the same digit*/
+    if (digits[i] == ',' || digits[i] == '.')
+      vfd.print(" ");
+  }
+
+  delay(250);
+}
+/*
 //////////////////////////////////////////////////// ////////////////
 // Functions to control the display
 // See datasheet 16lF01UA3 samsumg and MSC1937-01 OKI semiconductor
@@ -42,27 +99,7 @@ void WriteData (byte dat) {
     delayMicroseconds (1); // Wait for new data / commands
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+*/
 
 
 
@@ -70,7 +107,7 @@ void WriteData (byte dat) {
 
 
 // https://www.fruitemu.co.uk/ib/index.php?app=forums&module=forums&controller=topic&id=17419
-
+/*
 // INCLUDES
 #include <SPI.h>
 
