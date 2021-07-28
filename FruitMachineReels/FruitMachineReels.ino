@@ -3,19 +3,26 @@
  * Copyright (c) 2021 Playful Technology
  */
 // DEFINES
-// The total number of steps required for one complete revolution of the motor
+// Helper function to get length of an arbitrary array
+#define ArrayLength(x) (sizeof(x) / sizeof((x)[0]))
+
+// The total number of steps required for one complete revolution of the reel motor
 // Common values for motors are: 
 // - 7.5° step angle = 48 steps
 // - 1.8° step angle = 200 steps
 #define NUM_STEPS 48
+
 // STEPS_PER_VALUE is the number of steps between adjacent symbols on the reel
 // Calculated as NUM_STEPS / (Number of Symbols)
 // For 16 values on a 7.5° step angle reel (48 steps), STEPS_PER_VALUE 3 etc.
 // For 12 values on a 7.5° step angle reel (48 steps), STEPS_PER_VALUE 4 etc.
 // For 20 values on a  1.8° step angle reel (200 steps), STEPS_PER_VALUE 10 etc.
-#define STEPS_PER_VALUE 3
-// What sort of shield is being used? USE_CNCSHIELD or USE_RAMPS
-#define USE_CNCSHIELD
+#define STEPS_PER_VALUE 4
+
+// What sort of shield is being used to wire the components to the Arduino? 
+// #define USE_CNCSHIELD (UNO) or #define USE_RAMPS (Mega)
+#define USE_RAMPS
+
 // Pin definitions for Arduino MEGA with RAMPS v1.4 shield
 // See https://github.com/MarlinFirmware/Marlin/blob/2.0.x/Marlin/src/pins/ramps/pins_RAMPS.h
 #ifdef USE_RAMPS
@@ -43,13 +50,28 @@
   #define SDPOWER            -1
   #define SDSS               53
   #define LED_PIN            13
-  #define FAN_PIN            9   
   #define PS_ON_PIN          12
-  #define KILL_PIN           -1
-  #define HEATER_0_PIN       10
+  //#define KILL_PIN           -1
+  // Note Pin D8 is wired to the separate 11A power supply and does not share any power with the rest of the board
   #define HEATER_1_PIN       8
+  // Pins D9 and D10 share the main 5A power supply. They are "common anode", in that the +ve terminals are connected 
+  // together, and are switched on only by grounding the separate -ve terminals.
+  #define FAN_PIN            9
+  #define HEATER_0_PIN       10  
   #define TEMP_0_PIN         13   // ANALOG NUMBERING
   #define TEMP_1_PIN         14   // ANALOG NUMBERING
+  #define KILL_PIN 41 //[RAMPS14-SMART-ADAPTER]  
+  #define LCD_PINS_RS 16 //[RAMPS14-SMART-ADAPTER]  
+  #define LCD_PINS_ENABLE 17 //[RAMPS14-SMART-ADAPTER]  
+  #define LCD_PINS_D4 23 //[RAMPS14-SMART-ADAPTER]  
+  #define LCD_PINS_D5 25 //[RAMPS14-SMART-ADAPTER]  
+  #define LCD_PINS_D6 27 //[RAMPS14-SMART-ADAPTER]  
+  #define LCD_PINS_D7 29 //[RAMPS14-SMART-ADAPTER]  
+  #define BTN_EN1 31 //[RAMPS14-SMART-ADAPTER]  
+  #define BTN_EN2 33 //[RAMPS14-SMART-ADAPTER]  
+  #define BTN_ENC 35 //[RAMPS14-SMART-ADAPTER]  
+  #define BEEPER 37 //[RAMPS14-SMART-ADAPTER] / 37 = enabled; -1 = disabled / (if you don't like the beep sound ;-)
+  #define SDCARDDETECT 49 //[RAMPS14-SMART-ADAPTER]  
 #endif
 // Pin definitions for Arduino UNO with CNC Shield v3
 // see https://wiki.keyestudio.com/Ks0160_keyestudio_CNC_Shield_V3
@@ -84,15 +106,24 @@
 
 // CONSTANTS
 const byte numReels = 3;
-// Use the MIN END STOP pins as inputs
-// NOTE IF USING THE CNC SHIELD IT HAS 4 DRIVERS BUT ONLY SUPPORTS 3 ENDSTOPS, so using HOLD_PIN instead
-const byte sensorPins[4] = {X_MIN_PIN, Y_MIN_PIN, Z_MIN_PIN, HOLD_PIN};
+
+#ifdef USE_RAMPS
+  // Use the X/Y min/max end stop pins to wire the opto sensors
+  const byte sensorPins[4] = {X_MIN_PIN, X_MAX_PIN, Y_MIN_PIN, Y_MAX_PIN};
+#elif USE_CNCSHIELD
+  // The CNC shield only supports 3 endstops, so if we have >3 reels need to use another pin for the extra optosensors 
+  const byte sensorPins[4] = {X_MIN_PIN, Y_MIN_PIN, Z_MIN_PIN, HOLD_PIN};
+#endif
 
 // INCLUDES
 // See: http://www.airspayce.com/mikem/arduino/AccelStepper/
 #include <AccelStepper.h>
 // https://github.com/thomasfredericks/Bounce2
 #include <Bounce2.h>
+// 20x04 character LCD display
+#include <LiquidCrystal.h>
+// Rotary encoder
+#include <Encoder.h>
 
 // GLOBALS
 // Define each stepper and the pins it will use
@@ -101,8 +132,56 @@ AccelStepper stepperY(AccelStepper::DRIVER, Y_STEP_PIN, Y_DIR_PIN);
 AccelStepper stepperZ(AccelStepper::DRIVER, Z_STEP_PIN, Z_DIR_PIN);
 AccelStepper stepperE(AccelStepper::DRIVER, E_STEP_PIN, E_DIR_PIN);
 AccelStepper steppers[4] = {stepperX, stepperY, stepperZ, stepperE};
-// Array of Bounce objects to help read each time reel tab spins past the opto-sensor
+// Array of Bounce objects to help read each time a reel tab spins past the opto-sensor
 Bounce optoSensors[4] = {};
+// Initialize the LCD with specified interface pins
+LiquidCrystal lcd(LCD_PINS_RS, LCD_PINS_ENABLE, LCD_PINS_D4, LCD_PINS_D5, LCD_PINS_D6, LCD_PINS_D7);
+// Create a char array to store the contents of the LCD screen
+char displayBuffer[4][20];
+// Encoder object
+Encoder encoder(BTN_EN2, BTN_EN1);
+long lastEncoderPosition  = -999;
+long currentEncoderPosition;
+// encButton is when encoder button (LS1) is pushed in
+Bounce2::Button encButton = Bounce2::Button();
+// button is the small black button (K1)
+Bounce2::Button button = Bounce2::Button();
+
+/**
+ * Copies the current contents of the display buffer to the LCD
+ */
+void updateDisplay() {
+  for(int i=0; i<4; i++) {
+    lcd.setCursor(0,i);
+    lcd.print(displayBuffer[i]);
+  }
+}
+
+/**
+ * Displays a string on LCD screen and via serial connection
+ */
+void logMessage(char* message){
+  for(int i=0; i<3; i++){
+    strncpy(displayBuffer[i], displayBuffer[i+1], sizeof(displayBuffer[i]));
+  }
+  // Note use of right-padding to fill whole line
+  snprintf(displayBuffer[3], sizeof(displayBuffer[3]), "%-20s", message);
+  Serial.println(message);
+  updateDisplay();
+}
+
+/**
+ * Displays a PROGMEM string on LCD screen and via serial connection
+ */
+void logMessage(const __FlashStringHelper* message){
+  for(int i=0; i<3; i++){
+    strncpy(displayBuffer[i], displayBuffer[i+1], sizeof(displayBuffer[i]));
+  }
+  // Note use of right-padding to fill whole line
+  snprintf_P(displayBuffer[3], sizeof(displayBuffer[3]), PSTR("%-20S") , message);
+  Serial.println(message);
+  updateDisplay();
+}
 
 // Initial setup
 void setup() {
@@ -117,6 +196,17 @@ void setup() {
   Serial.println(F("Send 200 for random spin"));  
   Serial.println(F("Send 300 for winning spin"));
 
+  // Start the LCD display with specified columns and rows
+  lcd.begin(20, 4);
+  
+  // Print a message to the LCD
+  sprintf(displayBuffer[0], "%-16s %3s", "Fruit Machine", "1.0"); 
+  updateDisplay();
+   
+  // Initialise the buttons
+  encButton.attach(BTN_ENC, INPUT_PULLUP);
+  button.attach(KILL_PIN, INPUT_PULLUP);
+
   // Note: if using stepper drivers (A4988 etc.), these need to be enabled by pulling the EN pin low. 
   // On some shields, the pin is automatically pulled to GND via a jumper. If not, write a LOW signal to 
   // whatever pin is connected to the enable pin of the chip. 
@@ -125,7 +215,7 @@ void setup() {
   pinMode(Z_ENABLE_PIN, OUTPUT);  digitalWrite(Z_ENABLE_PIN, LOW);
   pinMode(E_ENABLE_PIN, OUTPUT);  digitalWrite(E_ENABLE_PIN, LOW);
   
-  // Set the MIN END STOP pins as inputs
+  // Set the optosensor pins as inputs and attach debounce objects to them
   for(int i=0; i<numReels; i++) {
     optoSensors[i].attach(sensorPins[i], INPUT);
   }
@@ -136,6 +226,25 @@ void setup() {
     steppers[i].setMaxSpeed(60);
     steppers[i].setAcceleration(150);
   }
+  /*
+  logMessage(F("Testing beeper"));
+  pinMode(BEEPER, OUTPUT);
+  digitalWrite(BEEPER, HIGH);
+  delay(100);
+  digitalWrite(BEEPER, LOW);
+  */
+
+  // Calibrate reels to determine "zero" point
+  CalibrateReels();
+  
+  logMessage(F("Setup Complete"));  
+}
+
+/**
+ * Returns modulo, and deals correctly with negative numbers (unlike builtin %)
+ */
+int mod(int x, int y ){
+  return x<0 ? ((x+1)%y)+y-1 : x%y;
 }
 
 void CalibrateReels(){
@@ -146,7 +255,7 @@ void CalibrateReels(){
     float maxSpeed = steppers[i].maxSpeed();
     
     // Set the stepper to a slower speed for calibration if desired
-   // steppers[i].setMaxSpeed(24);
+    steppers[i].setMaxSpeed(24);
 
     // Set a target point several rotations away from the current position
     steppers[i].move(NUM_STEPS*4);
@@ -174,7 +283,7 @@ void CalibrateReels(){
     }
 
     // Carry on calling run() after stop() - see https://groups.google.com/g/accelstepper/c/i92AHogeAXU?pli=1
-    for(int i=0; i<10; i++){
+    for(int n=0; n<10; n++){
       steppers[i].run();
     }
     
@@ -182,8 +291,9 @@ void CalibrateReels(){
     steppers[i].setMaxSpeed(maxSpeed);
     delay(500);
 
-   // Serial.println(F("Stepper calibrated"));
+    Serial.println(F("Stepper calibrated"));
   }
+  Serial.println(F("Steppers calibrated"));
 }
 
 // See https://forum.arduino.cc/t/rounding-an-integer-up-only/350784/3
@@ -194,9 +304,63 @@ long roundUp(long val, long factor) {
   return val;
 }
 
+void nudge(int reelNum, int positions){
+  steppers[reelNum].move(positions * STEPS_PER_VALUE);
+}
+
+/**
+ * Spin all reels to an arbitrary position
+ */
+void randomSpin(){
+  // Assign a random, increasing target to each reel
+  for(int i=0; i<numReels; i++) {
+    // Set *relative* position for each target
+    steppers[i].move(random(NUM_STEPS*(i+2),NUM_STEPS*(i+4)));
+  }
+}
+
+/**
+ * Spin all reels and stop on a whole number of revolutions from the zero point
+ */
+void targetSpin(){
+  for(int i=0; i<numReels; i++) {
+    // Calculate *absolute* position that is next multiple of whole number of revolutions
+    long target = roundUp(steppers[i].currentPosition(), NUM_STEPS);
+    target += NUM_STEPS * ((i+1)*2);
+    // moveTo is absolute
+    steppers[i].moveTo(target);
+  }
+}
+
 void loop() {
 
-  // PROCESS INPUT
+ // INPUTS
+  button.update();
+  encButton.update();
+  for(int i=0; i<numReels; i++) {
+    optoSensors[i].update();
+  }
+ // Read rotary encoder input
+  currentEncoderPosition = encoder.read();
+  // If it's changed, output new value
+  if (currentEncoderPosition != lastEncoderPosition) {
+    lastEncoderPosition = currentEncoderPosition;
+    sprintf(displayBuffer[1], "Encoder: %-7d", currentEncoderPosition>>2); 
+    updateDisplay();
+  }
+  if(encButton.pressed()) {
+    logMessage(F("encButton Pressed"));
+    targetSpin();
+  }
+  if(button.pressed()) {
+    logMessage(F("button Pressed"));
+    randomSpin();
+    /*
+    digitalWrite(BEEPER, HIGH);
+    delay(100);
+    digitalWrite(BEEPER, LOW);
+    */
+  }
   // Test whether any input has been received on the serial connection
   if(Serial.available() > 0){
     // Read any integer sent
@@ -208,43 +372,34 @@ void loop() {
       return;
     }
     else if(command == 1){
-      steppers[0].move(STEPS_PER_VALUE);
+      nudge(0, 1);
     }
     else if(command == 2){
-      steppers[1].move(STEPS_PER_VALUE);
+      nudge(1, 1);
     }
     else if(command == 3){
-      steppers[2].move(STEPS_PER_VALUE);
+      nudge(2, 1);
     }
     else if(command == 4){
-      steppers[3].move(STEPS_PER_VALUE);
+      nudge(3, 1);
     }
     else if(command == 5){
-      steppers[0].move(-STEPS_PER_VALUE);
+      nudge(0, -1);
     }
     else if(command == 6){
-      steppers[1].move(-STEPS_PER_VALUE);
+      nudge(1, -1);
     }
     else if(command == 7){
-      steppers[2].move(-STEPS_PER_VALUE);
+      nudge(2, -1);
     }
     else if(command == 8){
-      steppers[3].move(-STEPS_PER_VALUE);
+      nudge(3, -1);
     }
     else if(command == 200) {
-      // Assign a random, increasing target to each reel
-      for(int i=0; i<numReels; i++) {
-        // Set *relative* position for each target
-        steppers[i].move(random(NUM_STEPS*(i+2),NUM_STEPS*(i+4)));
-      }
+      randomSpin();
     }
     else if(command == 300) {
-      for(int i=0; i<numReels; i++) {
-        // Calculate *absolute* position that is next multiple of whole number of revolutions
-        long target = roundUp(steppers[i].currentPosition(), NUM_STEPS);
-        target += NUM_STEPS * ((i+1)*2);
-        steppers[i].moveTo(target);
-      }
+      targetSpin();
     }
   }
   // This gets called every frame, and processes any movement of the steppers as necessary
