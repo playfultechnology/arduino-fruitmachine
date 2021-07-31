@@ -1,5 +1,13 @@
 /**
- * 7-Segment Common Cathode LED display array 
+ * 7-Segment LED display array 
+ * 
+ * This code uses two daisy-chained shift registers to control an array of (up to 8) multiplexed 7-segment displays: 
+ * - one "high side" (e.g. MIC5981 or 74HC595+UDN2981) which supplies +ve voltage to the anodes 
+ * - one "low side" (e.g. TPIC6B595 or 74HC595+ULN2803) which grounds the cathodes
+ * 
+ * With minor modifications to the code, this setup will work with either common anode or common cathode displays
+ * (in common anode, the segments to be displayed are determined by the low side, in common cathode, segments to be displayed
+ * are determined by the high side). Resistors should be added to each segment at that same side, according to (V-Vf)/If  
  */
 
 // DEFINES
@@ -9,10 +17,11 @@
 #include "ASCIIto7Segment.h"
 
 // CONSTANTS
-// Pins connected to 74HC595 shift register(s)
-const int latchPin = 10;
-const int clockPin = 13;
-const int dataPin = 11;
+// Pins to control shift register(s)
+const int latchPin = 10; // (Storage Register Clock Input/STCP/RCLK)
+const int clockPin = 13; // (Shift Register Clock Input/SHCP/SRCLK)
+const int dataPin = 11; // (Din/SER)
+// Note that OE needs to be pulled LOW, and SCLR/RST needs to be pulled HIGH
 
 // Return the binary representation of the supplied character
 byte getSegments(char c) {
@@ -94,7 +103,7 @@ void loop() {
   // To continuously set a new value, e.g. counting up every second
   // CountUp();
 
-  // Loop over every display
+  // Loop over every digit
   for(int i=0; i<4; i++){
     // Hold the latch pin low
     digitalWrite(latchPin, LOW);
