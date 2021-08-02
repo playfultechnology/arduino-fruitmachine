@@ -81,6 +81,17 @@ void setup() {
   pinMode(latchPin, OUTPUT);
   pinMode(dataPin, OUTPUT);  
   pinMode(clockPin, OUTPUT);
+
+  // Hold the latch pin low
+  digitalWrite(latchPin, LOW);
+  // First, shift in the value that determines which display cathodes will be grounded by the ULN2803
+  shiftOut(dataPin, clockPin, LSBFIRST, 255); //getSegments(valueToDisplay[i]));    
+  //shiftOut(dataPin, clockPin, MSBFIRST, getSegments(valueToDisplay[i]));
+  // Then shift in the value of which segment anodes will be lit by the UDN2981
+  shiftOut(dataPin, clockPin, LSBFIRST, 255);
+  // Release the latch
+  digitalWrite(latchPin, HIGH);
+  
 }
 
 void loop() {
@@ -102,19 +113,22 @@ void loop() {
   */
   // To continuously set a new value, e.g. counting up every second
   // CountUp();
-
+/*
   // Loop over every digit
   for(int i=0; i<4; i++){
     // Hold the latch pin low
     digitalWrite(latchPin, LOW);
     // First, shift in the value that determines which display cathodes will be grounded by the ULN2803
-    shiftOut(dataPin, clockPin, MSBFIRST, getSegments(valueToDisplay[i]));    
+    shiftOut(dataPin, clockPin, LSBFIRST, 255); //getSegments(valueToDisplay[i]));    
     //shiftOut(dataPin, clockPin, MSBFIRST, getSegments(valueToDisplay[i]));
     // Then shift in the value of which segment anodes will be lit by the UDN2981
-    shiftOut(dataPin, clockPin, MSBFIRST, 1<<i);
+    shiftOut(dataPin, clockPin, LSBFIRST, 255);
     // Release the latch
     digitalWrite(latchPin, HIGH);
     // Set this as large as possible before flickering occurs
     delay(5);
   }
+*/
+delay(200);
+  
 }
