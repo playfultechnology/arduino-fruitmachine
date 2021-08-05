@@ -16,7 +16,6 @@ const byte patterns[] = {B00111111, B10000110, B01011011, B11001111, B01100110, 
 
 // Each shift register holds a single byte
 byte getBytePattern(int i){
-  
   byte b = 1<<i;
   // byte b = i;
   return b; 
@@ -24,26 +23,20 @@ byte getBytePattern(int i){
 
 // If we have four daisy-chained shift registers, can represent their 32bits in a single long
 unsigned long getLongPattern(int i) {
-
   unsigned long l;
-
   // Shift a 1 to the ith bit
   //unsigned long l = (unsigned long)1L<<i;
-
   // Or, use bitset to set an individual bit (count from right)
   bitSet(l, i);
-  
   return l;
 }
-
-
 
 // GLOBALS
 int i = 0;
 
 void setup() {
-
   Serial.begin(115200);
+  Serial.println(__FILE__ __DATE__);
   
   //set pins to output because they are addressed in the main loop
   pinMode(strobePin, OUTPUT);
@@ -56,16 +49,41 @@ void setup() {
 }
 
 void loop() {
-  digitalWrite(strobePin, LOW);
-  // Set strobe pin low to begin storing bits
-  // Then shift in the value of which segment anodes will be lit
-  shiftOut(dataPin, clockPin, LSBFIRST, getBytePattern(i));
 
+  for(int a=0;a<8;a++){
+    for(int b=0;b<8;b++){
+      // Set strobe pin low to begin storing bits  
+      digitalWrite(strobePin, LOW);
+      
+      // Then shift in the values for each register - one byte per register, and last first
+      shiftOut(dataPin, clockPin, MSBFIRST, getBytePattern(a));
+      shiftOut(dataPin, clockPin, MSBFIRST, getBytePattern(b));
+      shiftOut(dataPin, clockPin, MSBFIRST, 255);
+      shiftOut(dataPin, clockPin, MSBFIRST, 255);
+    
+      // Set strobe pin high to stop storing bits
+      digitalWrite(strobePin, HIGH);
+      delay(250);
+      
+    }
+  }
+/*
+  // Set strobe pin low to begin storing bits  
+  digitalWrite(strobePin, LOW);
+  
+  // Then shift in the values for each register - one byte per register, and last first
+  shiftOut(dataPin, clockPin, MSBFIRST, getBytePattern(i));
+  shiftOut(dataPin, clockPin, MSBFIRST, getBytePattern(i));
+  shiftOut(dataPin, clockPin, MSBFIRST, 255);
+  shiftOut(dataPin, clockPin, MSBFIRST, 255);
+
+
+/*
   for(int x = 31; x >= 0; x--)
     Serial.print(bitRead(getLongPattern(i),x));
   Serial.println();  
-  
-  
+  */
+  /*
   // Set strobe pin high to stop storing bits
   digitalWrite(strobePin, HIGH);
   delay(250);
@@ -74,5 +92,5 @@ void loop() {
   if(i>31) {
     i=0;
   }
-  
+  */
 }
