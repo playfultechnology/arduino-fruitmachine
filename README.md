@@ -1,8 +1,8 @@
 # arduino-fruitmachine
-This repository contains code listings, wiring diagrams, notes, and other reference information relating to my experiences of disassembling old (generally broken, sold as "for spares for repairs") fruit machines into their various constituent components, and then rebuilding their functionality using an Arduino microprocessor as a controller.
+This repository contains code listings, wiring diagrams, notes, and other reference information relating to my experiences of disassembling old (generally broken, sold as "for spares for repairs") fruit machines (or, "slot machines", for U.S. friends) into their various constituent components, and then rebuilding their functionality using an Arduino microprocessor as a controller.
 Accompanying videos can be found at https://www.youtube.com/playlist?list=PLogiUurtMYtRenE8BooiE4FDIyxuIyZQj
 
-As of July 2021, I have now followed this process with four different machines of different eras and manufacturers (Bell Fruit "Snakes and Ladders", Electrocoin "Magic 100", Global "Tuppenny Nudger" and Global "Phoenix Knights"). Each machine has had different components, features, and design, and I've tried to update the notes below to cover the variety I've found.
+As of July 2021, I have now followed this process with five different machines of different eras and manufacturers (Bell Fruit "Snakes and Ladders", Electrocoin "Magic 100", "Max-a-Million", Global "Tuppenny Nudger" and Global "Phoenix Knights"). Each machine has had different components, features, and designs, and I've tried to update the notes below to cover the different variations I've found.
 
 <!-- ![Fruit Machine](FruitMachine.png?raw=true "Fruit Machine") -->
 <img src="https://raw.githubusercontent.com/playfultechnology/arduino-fruitmachine/d5c05b58d625fce697c9b50bb38bf21852ebf172/FruitMachine.png" width="200" height="458">
