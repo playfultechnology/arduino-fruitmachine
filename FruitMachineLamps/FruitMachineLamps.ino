@@ -25,7 +25,7 @@ byte getBytePattern(int i){
 unsigned long getLongPattern(int i) {
   unsigned long l;
   // Shift a 1 to the ith bit
-  //unsigned long l = (unsigned long)1L<<i;
+  // unsigned long l = (unsigned long)1L<<i;
   // Or, use bitset to set an individual bit (count from right)
   bitSet(l, i);
   return l;
