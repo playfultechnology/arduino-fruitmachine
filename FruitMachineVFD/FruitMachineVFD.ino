@@ -270,7 +270,10 @@ void loop() {
  sendCommand(20); // Test
  delay(1000);
 }
-*/                              
+*/
+
+
+/*                        
 // See https://picaxeforum.co.uk/threads/using-spi-serial-vfds-from-fruit-machines-with-picaxe-comprehensive-code-examples.22552/ 
 // Examples using the Samsung 16L102DA4 matrix display (SPI, 12V)
 // and the Samsung 16LF01UA3 Starburst display (5V)
@@ -347,3 +350,4 @@ void loop() {
 
  delay(3000);
 }
+*/
