@@ -108,8 +108,8 @@ void setup() {
   // Scroll To Left
   WriteData(162);
 
-  Write("PLAYFUL TECH", 12);
-  delay(1000);
+  Write("Ex-Slot Machine", 15);
+  delay(100000);
   attract();
 }
 
