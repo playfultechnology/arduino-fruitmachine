@@ -105,7 +105,7 @@
 #endif
 
 // CONSTANTS
-const byte numReels = 3;
+const byte numReels = 4;
 
 #ifdef USE_RAMPS
   // Use the X/Y min/max end stop pins to wire the opto sensors
@@ -131,6 +131,7 @@ AccelStepper stepperX(AccelStepper::DRIVER, X_STEP_PIN, X_DIR_PIN);
 AccelStepper stepperY(AccelStepper::DRIVER, Y_STEP_PIN, Y_DIR_PIN);
 AccelStepper stepperZ(AccelStepper::DRIVER, Z_STEP_PIN, Z_DIR_PIN);
 AccelStepper stepperE(AccelStepper::DRIVER, E_STEP_PIN, E_DIR_PIN);
+//AccelStepper stepperQ(AccelStepper::DRIVER, Q_STEP_PIN, Q_DIR_PIN);
 AccelStepper steppers[4] = {stepperX, stepperY, stepperZ, stepperE};
 // Array of Bounce objects to help read each time a reel tab spins past the opto-sensor
 Bounce optoSensors[4] = {};
