@@ -18,9 +18,9 @@
 
 // CONSTANTS
 // Pins to control shift register(s)
-const int latchPin = 10; // (Storage Register Clock Input/STCP/RCLK)
-const int clockPin = 13; // (Shift Register Clock Input/SHCP/SRCLK)
-const int dataPin = 11; // (Din/SER)
+const int latchPin = 3; // (Storage Register Clock Input/STCP/RCLK)
+const int clockPin = 2; // (Shift Register Clock Input/SHCP/SRCLK)
+const int dataPin = 4; // (Din/SER)
 // Note that OE needs to be pulled LOW, and SCLR/RST needs to be pulled HIGH
 
 // Return the binary representation of the supplied character
@@ -31,7 +31,9 @@ byte getSegments(char c) {
 // Define the values to display on each digit
 // We'll define this as a char array rather than an integer number, to allow for
 // display of arbitrary numbers, letters, or symbols 
-char valueToDisplay[5] = {'s', 't', 'a', 'r', 't'};
+//char valueToDisplay[5] = {'s', 't', 'a', 'r', 't'};
+char valueToDisplay[4] = {0b11111110, 0b00100000, 0b01000000, 0b10000000};
+
 
 // Keep track of timer for when to change the display
 unsigned long lastTimeNumberSet;
@@ -39,7 +41,7 @@ unsigned long delayBetweenValueChanging = 3000;
 
 // Assign a random 5-digit number to the display
 void setRandomNumber() {
-  for(int i=0; i<5; i++){
+  for(int i=0; i<4; i++){
     // Digits 0-9 correspond to ASCII codes 48-57
     valueToDisplay[i] = (char)(random(48,58));
   }
@@ -64,34 +66,39 @@ void setRandomWord() {
 
 void CountUp() {
   // Find out the number of seconds passed since the code started
-  unsigned long secondsElapsed = millis()/1000;
+  unsigned long secondsElapsed = millis()/100;
   // Loop over each display
-  for(int i=4; i>=0; i--){
+  for(int i=3; i>=0; i--){
     // Get the value of the current "unit" (ones, tens, hundreds etc.)
     uint8_t digit = secondsElapsed % 10;
     // Look up the binary representation of the corresponding digit 
-    valueToDisplay[i] = (char)digit+48;
+    valueToDisplay[i] = getSegments((char)digit+48);
     // Divide by 10 to move onto the next "unit"
     secondsElapsed /= 10;
   }
 }
 
 void setup() {
+
+  Serial.begin(115200);
+  Serial.println(__FILE__ __DATE__);
+  
   // Define pin modes
   pinMode(latchPin, OUTPUT);
   pinMode(dataPin, OUTPUT);  
   pinMode(clockPin, OUTPUT);
 
+/*
   // Hold the latch pin low
   digitalWrite(latchPin, LOW);
-  // First, shift in the value that determines which display cathodes will be grounded by the ULN2803
+  // First, shift in the value that determines which display anodes will be lit by the high-side driver(MIC5891/UDN2981)
   shiftOut(dataPin, clockPin, LSBFIRST, 255); //getSegments(valueToDisplay[i]));    
   //shiftOut(dataPin, clockPin, MSBFIRST, getSegments(valueToDisplay[i]));
-  // Then shift in the value of which segment anodes will be lit by the UDN2981
-  shiftOut(dataPin, clockPin, LSBFIRST, 255);
+  // Then shift in the value of which segment cathodes will be grounded by the low-side driver (TPIC6595 / ULN2803)
+  shiftOut(dataPin, clockPin, MSBFIRST, 255);
   // Release the latch
   digitalWrite(latchPin, HIGH);
-  
+  */
 }
 
 void loop() {
@@ -112,23 +119,24 @@ void loop() {
   }
   */
   // To continuously set a new value, e.g. counting up every second
-  // CountUp();
-/*
+  CountUp();
+
   // Loop over every digit
   for(int i=0; i<4; i++){
+    for(int segment=0; segment<8; segment++){
     // Hold the latch pin low
     digitalWrite(latchPin, LOW);
-    // First, shift in the value that determines which display cathodes will be grounded by the ULN2803
-    shiftOut(dataPin, clockPin, LSBFIRST, 255); //getSegments(valueToDisplay[i]));    
-    //shiftOut(dataPin, clockPin, MSBFIRST, getSegments(valueToDisplay[i]));
     // Then shift in the value of which segment anodes will be lit by the UDN2981
-    shiftOut(dataPin, clockPin, LSBFIRST, 255);
+    shiftOut(dataPin, clockPin, MSBFIRST, 1<<i);    
+    // First, shift in the value that determines which display cathodes will be grounded by the ULN2803
+    shiftOut(dataPin, clockPin, MSBFIRST, valueToDisplay[i]);
     // Release the latch
     digitalWrite(latchPin, HIGH);
     // Set this as large as possible before flickering occurs
-    delay(5);
+    delayMicroseconds(100);
+    }
   }
-*/
-delay(200);
+
+//delay(200);
   
 }

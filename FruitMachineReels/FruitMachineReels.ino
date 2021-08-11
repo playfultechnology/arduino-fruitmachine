@@ -188,7 +188,8 @@ void logMessage(const __FlashStringHelper* message){
 void setup() {
   // Start a serial connection
   Serial.begin(115200);
-  Serial.setTimeout(50); // Don't wait for ages for input
+  // Don't wait for ages for serial input
+  Serial.setTimeout(50); 
   Serial.println(__FILE__ __DATE__);
 
   Serial.println(F("Send 999 to calibrate"));
@@ -224,6 +225,8 @@ void setup() {
   // Stepper motor speed (steps/sec) and acceleration (steps per second^2)
   // These values need to be tweaked by experimentation!
   for(int i=0;i<numReels;i++){
+    // AccelStepper speed is express in steps/sec
+    // So, for a reel with NUM_STEPS 48, setMaxSpeed(60), means (60*60/48)= 75RPM
     steppers[i].setMaxSpeed(60);
     steppers[i].setAcceleration(150);
   }
@@ -236,6 +239,7 @@ void setup() {
   */
 
   // Calibrate reels to determine "zero" point
+  logMessage(F("Calibrating Reels"));    
   CalibrateReels();
   
   logMessage(F("Setup Complete"));  
@@ -248,6 +252,17 @@ int mod(int x, int y ){
   return x<0 ? ((x+1)%y)+y-1 : x%y;
 }
 
+
+/**
+ * Reset procedure as described in 20RM_MK2_STI manual
+ *
+ * I. Drive the motor at approximately 50RPM. 
+ * II. At every motor step change, monitor the optic output. Immediately the tab is detected by the optic cease driving the motor. 
+ * III. Wait 500mS then power up the motor on the Black and Yellow windings. 
+ * IV. Wait 500mS, this allows the motor/reel band to settle in position. Check the tab is in the optic. 
+ *     If not repeat steps i] to iv], if the tab is still not in the optic there is a fault.
+ * V. The reel mechanism and software are now initialised.
+ */
 void CalibrateReels(){
   Serial.println(F("Calibrating Reels"));
 
@@ -256,7 +271,8 @@ void CalibrateReels(){
     float maxSpeed = steppers[i].maxSpeed();
     
     // Set the stepper to a slower speed for calibration if desired
-    steppers[i].setMaxSpeed(24);
+    // Manual suggests calibrating at 50RPM
+    steppers[i].setMaxSpeed(50/60*NUM_STEPS);
 
     // Set a target point several rotations away from the current position
     steppers[i].move(NUM_STEPS*4);
@@ -272,8 +288,8 @@ void CalibrateReels(){
       if(optoSensors[i].rose()) {
         numTriggers++;
       }
-      // When the tab crosses through the sensor for the third time
-      if(numTriggers > 2){
+      // When the tab crosses through the sensor for the second time
+      if(numTriggers > 1){
         // Zero everything for this reel
         steppers[i].setCurrentPosition(0);
         steppers[i].setSpeed(0);
@@ -335,13 +351,13 @@ void targetSpin(){
 
 void loop() {
 
- // INPUTS
+  // INPUTS
   button.update();
   encButton.update();
   for(int i=0; i<numReels; i++) {
     optoSensors[i].update();
   }
- // Read rotary encoder input
+  // Read rotary encoder input
   currentEncoderPosition = encoder.read();
   // If it's changed, output new value
   if (currentEncoderPosition != lastEncoderPosition) {

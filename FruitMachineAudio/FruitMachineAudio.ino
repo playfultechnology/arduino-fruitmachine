@@ -39,8 +39,8 @@ void setup() {
 
   // Initialise input pins 
   for(int i=0; i<numInputs; i++) {
-    pinMode(inputPins[i], INPUT_PULLUP);
-    inputs[i].attach(inputPins[i], INPUT_PULLUP);
+    pinMode(inputPins[i], INPUT);
+    inputs[i].attach(inputPins[i], INPUT);
   }
 
   // Initialise VS1053
