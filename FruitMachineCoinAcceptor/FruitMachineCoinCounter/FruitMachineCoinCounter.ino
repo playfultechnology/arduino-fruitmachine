@@ -5,35 +5,23 @@
  * the IR LED and photodiode placed on opposite sides of the Y-chute, so that the
  * beam is broken and counted each time a coin is inserted.
  */
-// INCLUDES
-#include <SPI.h>
-// For reading files stored on SD card
-#include <SD.h>
-// For interfacing with MP3 sound board
-//#include <Adafruit_VS1053.h>
-#include "SerialMP3Player.h"
-
-
 
 // DEFINES
-// Note that, although the following are not explicitly used in the code, they are unavailable
-// as referenced by the SPI interface to the VS1053
-// #define CLK 13       // SPI Clock, shared with SD card
-// #define MISO 12      // Input data, from VS1053/SD card
-// #define MOSI 11      // Output data, to VS1053/SD card
-#define BREAKOUT_RESET  8      // VS1053 reset pin (output) marked XRESET
-#define BREAKOUT_CS     6     // VS1053 chip select pin (output) marked XCS
-#define BREAKOUT_DCS    7      // VS1053 Data/command select pin (output) marked XDCS
-#define CARDCS 9     // Card chip select pin
-#define DREQ 2       // VS1053 Data request, ideally an Interrupt pin
+// If possible, it is preferable to connect the output of the sensor to a GPIO pin that supports external interrupt
+// i.e. Pin 2,3 on an Arduino UNO/Nano, or 2,3,18,19,20,21 on a Mega
+// That means we don't have to poll the sensor, and less likely to fail to detect coins
+// #define USE_INTERRUPT
+ 
+// INCLUDES
+// For interfacing with MP3 sound board
+#include "SerialMP3Player.h"
 
 // CONSTANTS
-// GPIO pin must support external interrupts (i.e. Pin 2/3 on Arduino)
-const byte interruptPin = 2;
+const byte sensorPin = 2;
 const byte relayPin = 4;
 
 // GLOBALS
-//Adafruit_VS1053_FilePlayer musicPlayer = Adafruit_VS1053_FilePlayer(BREAKOUT_RESET, BREAKOUT_CS, BREAKOUT_DCS, DREQ, CARDCS);
+// Will initialise a software serial emulation on the specified Rx/Tx pins
 SerialMP3Player mp3(8,9);
 
 byte relayState = 0;
@@ -47,40 +35,17 @@ void setup() {
   Serial.begin(115200);
   Serial.println(__FILE__ __DATE__);
 
-  pinMode(interruptPin, INPUT);
-  attachInterrupt(digitalPinToInterrupt(interruptPin), coinTrigger, FALLING);
+  pinMode(sensorPin, INPUT);
+  #ifdef USE_INTERRUPT
+    attachInterrupt(digitalPinToInterrupt(sensorPin), coinTrigger, FALLING);
+  #endif
 
-/*
-  // Initialise VS1053
-  if(!musicPlayer.begin()) { // Initialise the VS1053 MP3 player
-     Serial.println(F("ERROR: Could not find VS1053"));
-     while(1);
-  }
-  Serial.println(F("VS1053 found"));
-  delay(250);
-  if(!SD.begin(CARDCS)) {
-    Serial.println(F("Could not initialise SD Card"));
-    while (1);
-  }
-  Serial.println(F("SD Card initialised"));
-  delay(250);
-
-  // List files on SD card
-  printDirectory(SD.open("/"), 0);
-
-  // Set volume for left, right channels. Lower numbers == louder volume!
-  musicPlayer.setVolume(5,5);
-
-  // If DREQ is on an interrupt pin (on uno, #2 or #3) we can play audio in background
-  musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);  // DREQ int
-*/
-
- mp3.begin(9600);        // start mp3-communication
+  // Start MP3-communication
+  mp3.begin(9600);        
   mp3.sendCommand(CMD_SEL_DEV, 0, 2);   //select sd-card
 
   pinMode(relayPin, OUTPUT);
   digitalWrite(relayPin, LOW);
-  
 }
 
 // ISR is called when sensor beam is broken by coin input
@@ -97,57 +62,25 @@ void coinTrigger() {
 }
 
 void loop() {
-  if(hasChanged) {
-    /*
-      // Only start a new track playing if old one has stopped
-      if(!musicPlayer.playingMusic){
-        Serial.print(F("Now playing "));
-        musicPlayer.startPlayingFile("DAHDALA.MP3");
-      }
-      // If a previous SFX was playing, stop it before starting new one
-      else {
-        musicPlayer.stopPlaying();
-        delay(10);
-        musicPlayer.startPlayingFile("DAHDALA.MP3");
-      }     
-      */
 
-    mp3.play(1);
+  // If not using interrupts, poll the sensor manually
+  #ifndef USE_INTERRUPT
+    // Sensor goes HIGH when a coin passes through
+    if(digitalRead(sensorPin) == HIGH) {
+      coinTrigger();
+    }
+  #endif
+
+  if(hasChanged) {
+    // Play the specified SFX
+    mp3.play(18);
       
-    // put your main code here, to run repeatedly:
     Serial.println(coinCount);
 
     // Toggle relay
     relayState = 1-relayState;
     digitalWrite(relayPin, relayState);
-
     
     hasChanged = false;
   }
-}
-
-
-/// File listing helper
-void printDirectory(File dir, int numTabs) {
-   while(true) {     
-     File entry =  dir.openNextFile();
-     if (! entry) {
-       // no more files
-       //Serial.println("**nomorefiles**");
-       break;
-     }
-     for (uint8_t i=0; i<numTabs; i++) {
-       Serial.print('\t');
-     }
-     Serial.print(entry.name());
-     if (entry.isDirectory()) {
-       Serial.println("/");
-       printDirectory(entry, numTabs+1);
-     } else {
-       // files have sizes, directories do not
-       Serial.print("\t\t");
-       Serial.println(entry.size(), DEC);
-     }
-     entry.close();
-   }
 }
