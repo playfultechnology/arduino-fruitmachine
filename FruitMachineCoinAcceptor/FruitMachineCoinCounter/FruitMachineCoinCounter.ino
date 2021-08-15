@@ -10,7 +10,10 @@
 // For reading files stored on SD card
 #include <SD.h>
 // For interfacing with MP3 sound board
-#include <Adafruit_VS1053.h>
+//#include <Adafruit_VS1053.h>
+#include "SerialMP3Player.h"
+
+
 
 // DEFINES
 // Note that, although the following are not explicitly used in the code, they are unavailable
@@ -26,11 +29,13 @@
 
 // CONSTANTS
 // GPIO pin must support external interrupts (i.e. Pin 2/3 on Arduino)
-const byte interruptPin = 3;
+const byte interruptPin = 2;
 const byte relayPin = 4;
 
 // GLOBALS
-Adafruit_VS1053_FilePlayer musicPlayer = Adafruit_VS1053_FilePlayer(BREAKOUT_RESET, BREAKOUT_CS, BREAKOUT_DCS, DREQ, CARDCS);
+//Adafruit_VS1053_FilePlayer musicPlayer = Adafruit_VS1053_FilePlayer(BREAKOUT_RESET, BREAKOUT_CS, BREAKOUT_DCS, DREQ, CARDCS);
+SerialMP3Player mp3(8,9);
+
 byte relayState = 0;
 
 // Number of times the trigger has fired
@@ -45,6 +50,7 @@ void setup() {
   pinMode(interruptPin, INPUT);
   attachInterrupt(digitalPinToInterrupt(interruptPin), coinTrigger, FALLING);
 
+/*
   // Initialise VS1053
   if(!musicPlayer.begin()) { // Initialise the VS1053 MP3 player
      Serial.println(F("ERROR: Could not find VS1053"));
@@ -67,6 +73,10 @@ void setup() {
 
   // If DREQ is on an interrupt pin (on uno, #2 or #3) we can play audio in background
   musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);  // DREQ int
+*/
+
+ mp3.begin(9600);        // start mp3-communication
+  mp3.sendCommand(CMD_SEL_DEV, 0, 2);   //select sd-card
 
   pinMode(relayPin, OUTPUT);
   digitalWrite(relayPin, LOW);
@@ -88,6 +98,7 @@ void coinTrigger() {
 
 void loop() {
   if(hasChanged) {
+    /*
       // Only start a new track playing if old one has stopped
       if(!musicPlayer.playingMusic){
         Serial.print(F("Now playing "));
@@ -99,6 +110,10 @@ void loop() {
         delay(10);
         musicPlayer.startPlayingFile("DAHDALA.MP3");
       }     
+      */
+
+    mp3.play(1);
+      
     // put your main code here, to run repeatedly:
     Serial.println(coinCount);
 
