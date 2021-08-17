@@ -15,14 +15,21 @@
 // INCLUDES
 // For interfacing with MP3 sound board
 #include "SerialMP3Player.h"
+#include "AltSoftSerial.h"
 
 // CONSTANTS
 const byte sensorPin = 2;
 const byte relayPin = 4;
 
+// There are 7 buttons on the front fact of the "Max-A-Million" machine
+const byte numButtons = 7; 
+const byte buttonPins[numButtons] = { 10, 11, 12, A0, A1, A2, A3 };
+
 // GLOBALS
+// Uses Rx 8, Tx 9
+AltSoftSerial altSerial;
 // Will initialise a software serial emulation on the specified Rx/Tx pins
-SerialMP3Player mp3(8,9);
+SerialMP3Player mp3;
 
 byte relayState = 0;
 
@@ -41,11 +48,18 @@ void setup() {
   #endif
 
   // Start MP3-communication
-  mp3.begin(9600);        
+  altSerial.begin(9600);
+  mp3.begin(altSerial);        
   mp3.sendCommand(CMD_SEL_DEV, 0, 2);   //select sd-card
 
   pinMode(relayPin, OUTPUT);
   digitalWrite(relayPin, LOW);
+
+  for(int i=0; i<numButtons; i++){
+    pinMode(buttonPins[i], INPUT_PULLUP);
+  }
+
+  
 }
 
 // ISR is called when sensor beam is broken by coin input
@@ -70,6 +84,13 @@ void loop() {
       coinTrigger();
     }
   #endif
+
+  for(int i=0; i<numButtons; i++) {
+    if(digitalRead(buttonPins[i] == LOW)){
+      mp3.play(i); 
+    }
+  }
+
 
   if(hasChanged) {
     // Play the specified SFX

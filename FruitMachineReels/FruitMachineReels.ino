@@ -21,7 +21,7 @@
 
 // What sort of shield is being used to wire the components to the Arduino? 
 // #define USE_CNCSHIELD (UNO) or #define USE_RAMPS (Mega)
-#define USE_RAMPS
+#define USE_CNCSHIELD
 
 // Pin definitions for Arduino MEGA with RAMPS v1.4 shield
 // See https://github.com/MarlinFirmware/Marlin/blob/2.0.x/Marlin/src/pins/ramps/pins_RAMPS.h
@@ -105,12 +105,12 @@
 #endif
 
 // CONSTANTS
-const byte numReels = 4;
+const byte numReels = 1;
 
 #ifdef USE_RAMPS
   // Use the X/Y min/max end stop pins to wire the opto sensors
   const byte sensorPins[4] = {X_MIN_PIN, X_MAX_PIN, Y_MIN_PIN, Y_MAX_PIN};
-#elif USE_CNCSHIELD
+#elif defined(USE_CNCSHIELD)
   // The CNC shield only supports 3 endstops, so if we have >3 reels need to use another pin for the extra optosensors 
   const byte sensorPins[4] = {X_MIN_PIN, Y_MIN_PIN, Z_MIN_PIN, HOLD_PIN};
 #endif
@@ -136,26 +136,32 @@ AccelStepper steppers[4] = {stepperX, stepperY, stepperZ, stepperE};
 // Array of Bounce objects to help read each time a reel tab spins past the opto-sensor
 Bounce optoSensors[4] = {};
 // Initialize the LCD with specified interface pins
-LiquidCrystal lcd(LCD_PINS_RS, LCD_PINS_ENABLE, LCD_PINS_D4, LCD_PINS_D5, LCD_PINS_D6, LCD_PINS_D7);
+#ifdef USE_RAMPS
+  LiquidCrystal lcd(LCD_PINS_RS, LCD_PINS_ENABLE, LCD_PINS_D4, LCD_PINS_D5, LCD_PINS_D6, LCD_PINS_D7);
+#endif
 // Create a char array to store the contents of the LCD screen
 char displayBuffer[4][20];
 // Encoder object
-Encoder encoder(BTN_EN2, BTN_EN1);
-long lastEncoderPosition  = -999;
-long currentEncoderPosition;
-// encButton is when encoder button (LS1) is pushed in
-Bounce2::Button encButton = Bounce2::Button();
-// button is the small black button (K1)
-Bounce2::Button button = Bounce2::Button();
+#ifdef USE_RAMPS
+  Encoder encoder(BTN_EN2, BTN_EN1);
+  long lastEncoderPosition  = -999;
+  long currentEncoderPosition;
+  // encButton is when encoder button (LS1) is pushed in
+  Bounce2::Button encButton = Bounce2::Button();
+  // button is the small black button (K1)
+  Bounce2::Button button = Bounce2::Button();
+#endif
 
 /**
  * Copies the current contents of the display buffer to the LCD
  */
 void updateDisplay() {
+  #ifdef USE_RAMPS
   for(int i=0; i<4; i++) {
     lcd.setCursor(0,i);
     lcd.print(displayBuffer[i]);
   }
+  #endif
 }
 
 /**
@@ -199,15 +205,19 @@ void setup() {
   Serial.println(F("Send 300 for winning spin"));
 
   // Start the LCD display with specified columns and rows
+  #ifdef USE_RAMPS
   lcd.begin(20, 4);
+  #endif
   
   // Print a message to the LCD
   sprintf(displayBuffer[0], "%-16s %3s", "Fruit Machine", "1.0"); 
   updateDisplay();
    
   // Initialise the buttons
+    #ifdef USE_RAMPS
   encButton.attach(BTN_ENC, INPUT_PULLUP);
   button.attach(KILL_PIN, INPUT_PULLUP);
+  #endif
 
   // Note: if using stepper drivers (A4988 etc.), these need to be enabled by pulling the EN pin low. 
   // On some shields, the pin is automatically pulled to GND via a jumper. If not, write a LOW signal to 
@@ -219,7 +229,7 @@ void setup() {
   
   // Set the optosensor pins as inputs and attach debounce objects to them
   for(int i=0; i<numReels; i++) {
-    optoSensors[i].attach(sensorPins[i], INPUT);
+    optoSensors[i].attach(sensorPins[i], INPUT_PULLUP);
   }
   
   // Stepper motor speed (steps/sec) and acceleration (steps per second^2)
@@ -272,7 +282,7 @@ void CalibrateReels(){
     
     // Set the stepper to a slower speed for calibration if desired
     // Manual suggests calibrating at 50RPM
-    steppers[i].setMaxSpeed(50/60*NUM_STEPS);
+    steppers[i].setMaxSpeed(50.0F/60.0F*NUM_STEPS);
 
     // Set a target point several rotations away from the current position
     steppers[i].move(NUM_STEPS*4);
@@ -352,11 +362,12 @@ void targetSpin(){
 void loop() {
 
   // INPUTS
-  button.update();
-  encButton.update();
   for(int i=0; i<numReels; i++) {
     optoSensors[i].update();
-  }
+  }  
+  #ifdef USE_RAMPS
+    button.update();
+    encButton.update();
   // Read rotary encoder input
   currentEncoderPosition = encoder.read();
   // If it's changed, output new value
@@ -378,6 +389,7 @@ void loop() {
     digitalWrite(BEEPER, LOW);
     */
   }
+  #endif
   // Test whether any input has been received on the serial connection
   if(Serial.available() > 0){
     // Read any integer sent
