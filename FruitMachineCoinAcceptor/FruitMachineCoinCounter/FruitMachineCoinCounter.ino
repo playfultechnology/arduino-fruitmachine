@@ -16,11 +16,11 @@
 // For interfacing with MP3 sound board
 #include "SerialMP3Player.h"
 #include "AltSoftSerial.h"
+#include "Bounce2.h"
 
 // CONSTANTS
 const byte sensorPin = 2;
 const byte relayPin = 4;
-
 // There are 7 buttons on the front fact of the "Max-A-Million" machine
 const byte numButtons = 7; 
 const byte buttonPins[numButtons] = { 10, 11, 12, A0, A1, A2, A3 };
@@ -30,9 +30,8 @@ const byte buttonPins[numButtons] = { 10, 11, 12, A0, A1, A2, A3 };
 AltSoftSerial altSerial;
 // Will initialise a software serial emulation on the specified Rx/Tx pins
 SerialMP3Player mp3;
-
+Bounce buttons[numButtons] = {};
 byte relayState = 0;
-
 // Number of times the trigger has fired
 volatile unsigned int coinCount = 0;
 volatile bool hasChanged = false;
@@ -56,7 +55,8 @@ void setup() {
   digitalWrite(relayPin, LOW);
 
   for(int i=0; i<numButtons; i++){
-    pinMode(buttonPins[i], INPUT_PULLUP);
+    // pinMode(buttonPins[i], INPUT_PULLUP);
+    buttons[i].attach(buttonPins[i], INPUT_PULLUP);
   }
 
   
@@ -86,8 +86,10 @@ void loop() {
   #endif
 
   for(int i=0; i<numButtons; i++) {
-    if(digitalRead(buttonPins[i] == LOW)){
-      mp3.play(i); 
+    buttons[i].update();
+    // if(digitalRead(buttonPins[i]) == LOW){
+    if(buttons[i].fell()) {
+      mp3.play(i+1); 
     }
   }
 

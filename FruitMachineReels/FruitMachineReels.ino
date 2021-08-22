@@ -268,7 +268,7 @@ int mod(int x, int y ){
  *
  * I. Drive the motor at approximately 50RPM. 
  * II. At every motor step change, monitor the optic output. Immediately the tab is detected by the optic cease driving the motor. 
- * III. Wait 500mS then power up the motor on the Black and Yellow windings. 
+ * III. Wait 500mS then power up the motor on the Black and Yellow windings. (Black and Yellow are the A windings of both coils)
  * IV. Wait 500mS, this allows the motor/reel band to settle in position. Check the tab is in the optic. 
  *     If not repeat steps i] to iv], if the tab is still not in the optic there is a fault.
  * V. The reel mechanism and software are now initialised.
