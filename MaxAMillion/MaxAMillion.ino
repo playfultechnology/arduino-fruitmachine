@@ -10,10 +10,11 @@
 // See: http://www.airspayce.com/mikem/arduino/AccelStepper/
 #include <AccelStepper.h>
 // For interfacing with MP3 sound board
-#include "SoftwareSerial.h"
 #include "SerialMP3Player.h"
 // For starburst VFD display
 #include "src/Samsung_16LF01_VFD.h"
+// For 7-Segment LED display
+#include "src/ASCIIto7Segment.h"
 
 // DEFINES
 // The total number of steps required for one complete revolution of the reel motor
@@ -59,17 +60,18 @@ const byte optoSensorPins[numReels] = {X_MIN_PIN, X_MAX_PIN, Y_MIN_PIN, Y_MAX_PI
 const byte numButtons = 7;
 const byte buttonPins[numButtons] = {63, 40, 42, 59, 64, 44, 66};
 const byte coinPin = 65; // Top-right of AUX-2
-// Serial audio output connected to AUX-1
-const byte audioTxPin = 57;
-const byte audioRxPin = 58;
-// LED 7-Segment driver connected to SERVOs
-const byte LEDClockPin = 6;
-const byte LEDLatchPin = 5;
-const byte LEDDataPin = 4;
 // VFD Display connected to AUX-3
 const byte VFDClockPin = 52;
 const byte VFDResetPin = 50;
 const byte VFDDataPin = 51;
+// Serial audio output connected to the Serial2 pins on AUX-4
+const byte audioTxPin = 16;
+const byte audioRxPin = 17;
+// LED 7-Segment driver connected to SERVOs
+const byte numLEDDigits = 4;
+const byte LEDClockPin = 6;
+const byte LEDLatchPin = 5;
+const byte LEDDataPin = 4;
 
 // GLOBALS
 // Define each stepper and the pins it will use
@@ -82,9 +84,15 @@ AccelStepper steppers[4] = {stepperX, stepperY, stepperZ, stepperE};
 Bounce optoSensors[numReels] = {};
 Bounce buttons[numButtons] = {};
 Bounce coinSensor;
-SoftwareSerial softSerial(audioRxPin, audioTxPin);
 SerialMP3Player mp3;
 Samsung_16LF01_VFD vfd(VFDClockPin, VFDDataPin, VFDResetPin);
+// Define the segments that should be lit on each digit .GFEDCBA
+//  aaa
+// f   b
+//  ggg
+// e   c
+//  ddd
+byte segmentsToDisplay[numLEDDigits] = {};
 
 // Initial setup
 void setup() {
@@ -118,8 +126,8 @@ void setup() {
   }
   coinSensor.attach(coinPin, INPUT_PULLUP);
 
-  softSerial.begin(9600);
-  mp3.begin(softSerial);        
+  Serial2.begin(9600);
+  mp3.begin(Serial2);        
   mp3.sendCommand(CMD_SEL_DEV, 0, 2);   // Select SD-card as storage device
 
   // Initialize the VFD display (number of digits to use, brightness (in 1/31ths))
@@ -179,6 +187,10 @@ void CalibrateReels(){
         steppers[i].setSpeed(0);
         steppers[i].move(0);
         steppers[i].stop();
+
+        delay(500);
+        steppers[i].move(1);
+        
         break;
       }
     }
@@ -188,11 +200,8 @@ void CalibrateReels(){
       steppers[i].run();
     }
 
-    delay(500);
+    steppers[i].setCurrentPosition(0);
 
-    steppers[i].move(1);
-
-    
     // Now that calibration is complete, restore the normal max motor speed
     steppers[i].setMaxSpeed(maxSpeed);
     delay(500);
@@ -212,19 +221,34 @@ void loop() {
   coinSensor.update();
 
   if(coinSensor.fell()){
-        
+    mp3.play(18); 
   }
-  if(buttons[2].fell()) {
+  if(buttons[0].fell()) {
+    mp3.play(7);
+  }  
+  if(buttons[1].fell()) {
     mp3.play(1);
+    nudge(0,1);
+  }  
+  if(buttons[2].fell()) {
+    mp3.play(2);
     nudge(1,1);
   }
   if(buttons[3].fell()) {
-    mp3.play(2);
+    mp3.play(3);
     nudge(2,1);
   }
   if(buttons[4].fell()) {
-    mp3.play(3);
+    mp3.play(4);
     nudge(3,1);
+  }
+  if(buttons[5].fell()) {
+    mp3.play(5);
+    randomSpin();
+  }
+  if(buttons[6].fell()) {
+    mp3.play(6);
+    winningSpin();
   }   
   
   // Test whether any input has been received on the serial connection
@@ -302,5 +326,47 @@ void winningSpin(){
     target += NUM_STEPS * ((i+1)*2);
     // moveTo is absolute
     steppers[i].moveTo(target);
+  }
+}
+
+/** 
+ * Return the binary representation of the supplied character 
+ */
+byte getSegments(char c) {
+  return ASCIIto7Segment[c-32];
+};
+
+/** 
+ * Set LED segments to display increasing count of elapsed time 
+ */
+void countUp() {
+  // Find out the number of seconds passed since the code started
+  unsigned long secondsElapsed = millis()/1000;
+  // Loop over each display, starting with the rightmost as the smallest unit
+  for(int i=numLEDDigits-1; i>=0; i--){
+    // Get the value of the current "unit" (ones, tens, hundreds etc.)
+    uint8_t digit = secondsElapsed % 10;
+    // Look up the binary representation of the corresponding digit (0 is ASCII code 48)
+    segmentsToDisplay[i] = getSegments((char)digit+48);
+    // Divide by 10 to move onto the next "unit"
+    secondsElapsed /= 10;
+  }
+}
+
+void updateLEDDisplay() {
+  // Loop over every digit
+  for(int i=0; i<numDigits; i++){
+    for(int segment=0; segment<8; segment++){
+    // Hold the latch pin low
+    digitalWrite(latchPin, LOW);
+    // Shift in the value of which segment anodes will be lit by the UDN2981
+    shiftOut(dataPin, clockPin, MSBFIRST, 1<<i);    
+    // Shift in the value that determines which display cathodes will be grounded by the ULN2803
+    shiftOut(dataPin, clockPin, MSBFIRST, segmentsToDisplay[i]);
+    // Release the latch
+    digitalWrite(latchPin, HIGH);
+    // Set this as large as possible before flickering occurs
+    delayMicroseconds(100);
+    }
   }
 }
