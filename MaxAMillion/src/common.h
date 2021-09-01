@@ -19,4 +19,19 @@ long roundUp(long val, long factor) {
   if (rem > 0) val += factor;
   return val;
 }
+
+/**
+ * Displays a PROGMEM string on LCD screen and via serial connection
+ */
+void logMessage(const __FlashStringHelper* message){
+/*
+  for(int i=0; i<3; i++){
+    strncpy(displayBuffer[i], displayBuffer[i+1], sizeof(displayBuffer[i]));
+  }
+  // Note use of right-padding to fill whole line
+  snprintf_P(displayBuffer[3], sizeof(displayBuffer[3]), PSTR("%-20S") , message);
+*/	
+  Serial.println(message);
+}
+
 #endif
