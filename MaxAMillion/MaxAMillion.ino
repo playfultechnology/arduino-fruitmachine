@@ -63,9 +63,9 @@ const byte numButtons = 7;
 const byte buttonPins[numButtons] = {63, 59, 40, 64, 42,  44, 65};
 const byte coinPin = 66;
 // VFD Starburst Display connected to AUX-3
-const byte VFDClockPin = 52;
-const byte VFDResetPin = 50;
-const byte VFDDataPin = 51;
+const byte VFDClockPin = 51;
+const byte VFDResetPin = 52;
+const byte VFDDataPin = 50;
 // RC input channels connected to Servos
 const byte numRCs = 4;
 const byte RCinputPins[numRCs] = {11, 6, 5, 4};
@@ -84,6 +84,17 @@ AccelStepper stepperZ(AccelStepper::DRIVER, Z_STEP_PIN, Z_DIR_PIN);
 AccelStepper stepperE(AccelStepper::DRIVER, E_STEP_PIN, E_DIR_PIN);
 AccelStepper steppers[4] = {stepperX, stepperY, stepperZ, stepperE};
 
+unsigned long vfdTimer = 0;
+char message[64] = "Welcome to CluedUp casino! Insert one quarter to play!         ";
+char digits[17] = "                ";
+int firstDigit = 0;
+int lastDigit = strlen(message) - 1;
+
+unsigned int credits;
+
+byte stepperActive[4] = {0,0,0,0};
+
+
 bool stepperWasRunning[numReels] = {};
 
 // Array of Bounce objects to help read each time a reel tab spins past the opto-sensor
@@ -92,6 +103,7 @@ Bounce buttons[numButtons] = {};
 Bounce RCinputs[numRCs] = {};
 Bounce coinSensor;
 SerialMP3Player mp3;
+
 Samsung_16LF01_VFD vfd(VFDClockPin, VFDDataPin, VFDResetPin);
 
 // Initial setup
@@ -109,7 +121,7 @@ void setup() {
     // On some shields, the pin is automatically pulled to GND via a jumper. If not, write a LOW signal to 
     // whatever pin is connected to the enable pin of the chip.
     pinMode(stepperEnablePins[i], OUTPUT);
-    digitalWrite(stepperEnablePins[i], HIGH);
+    digitalWrite(stepperEnablePins[i], LOW);
     
     // Set the optosensor pins as inputs and attach pullups and debounce objects to them
     optoSensors[i].attach(optoSensorPins[i], INPUT_PULLUP);
@@ -117,6 +129,19 @@ void setup() {
     // AccelStepper speed is express in steps/sec
     // So, for a reel with NUM_STEPS 48, setMaxSpeed(60), means (60*60/48)= 75RPM
     steppers[i].setMaxSpeed(60);
+
+    steppers[0].setMaxSpeed(60);
+    steppers[1].setMaxSpeed(20);
+    steppers[2].setMaxSpeed(24);
+    steppers[3].setMaxSpeed(28);
+
+
+    steppers[0].setSpeed(60);
+    steppers[1].setSpeed(20);
+    steppers[2].setSpeed(24);
+    steppers[3].setSpeed(24); 
+
+    
     steppers[i].setAcceleration(150);
   }
   // Initialise input buttons
@@ -145,6 +170,17 @@ void setup() {
   vfd.begin (16,25);
   // Display a welcome static message
   vfd.print("Clued Up!");
+  delay(1000);
+  vfd.clear();
+  /*Go to the first digit display*/
+  vfd.setCursor(0);
+
+  // Display a welcome static message
+  vfd.print("Calibrating...");
+  delay(1000);
+  vfd.clear();
+  /*Go to the first digit display*/
+  vfd.setCursor(0);
 
   Serial.println(F("Send 999 to calibrate"));
   Serial.println(F("Send 1/2/3/4 to nudge reels up"));
@@ -207,36 +243,44 @@ void CalibrateReels(){
         
         numTriggers++;
       }
-      // When the tab crosses through the sensor for the second time
-      if(numTriggers > 1){
+      // When the tab crosses through the sensor for the third time
+      if(numTriggers > 2){
         // Immediately set motor speed to zero
-        steppers[i].setSpeed(0);
-        steppers[i].stop();
+        //steppers[i].setSpeed(0);
+        //steppers[i].stop();
+        steppers[i].setCurrentPosition(0);
+        //steppers[i].move(NUM_STEPS);
         delay(500);
-        // According to calibration procedure, we then need to move one more step
-        steppers[i].move(1);
         break;
       }
     }
     if(numTriggers <= 1) {
       logMessage(F("Calibration failed"));
     }
-
     // Carry on calling run() after stop() - see https://groups.google.com/g/accelstepper/c/i92AHogeAXU?pli=1
-    for(int n=0; n<10; n++){
+    for(int n=0; n<50; n++){
       steppers[i].run();
     }
+    delay(500);
 
+    // According to calibration procedure, we then need to move one more step
+    //steppers[i].move(-1);
+    //while(steppers[i].distanceToGo() != 0) {
+    //  steppers[i].run();
+   // }
+    
     // Set zero position
     steppers[i].setCurrentPosition(0);
 
     // Now that calibration is complete, restore the normal max motor speed
     steppers[i].setMaxSpeed(maxSpeed);
-    delay(500);
 
-    // Disable motor driver to conserver power
-    digitalWrite(stepperEnablePins[i], HIGH);
+    // Disable motor driver to conserve power
+    // digitalWrite(stepperEnablePins[i], HIGH);
+
+    mp3.play(i+1);
     
+    delay(500);
   }
   Serial.println(F("Calibration complete"));
 }
@@ -244,6 +288,38 @@ void CalibrateReels(){
 
 void loop() {
 
+
+if(credits == 0){
+  strcpy(message, "Welcome to CluedUp casino! Insert one quarter to play!         ");
+}
+else {
+  strcpy(message, "Spin the reels! Get three Jackpots to win a prize!             ");
+}
+
+  unsigned long now = millis();
+
+  if(now - vfdTimer > 250){
+
+    for(int i=0; i<15; i++) {
+      digits[i] = digits[i + 1];
+    }
+    digits[15] = message[firstDigit];
+  
+    if (firstDigit == lastDigit)
+      firstDigit = 0;
+    else
+      firstDigit = firstDigit + 1;
+  
+    for (int i=0; i<16; i++) {
+      vfd.print(digits[i]);
+  
+      /*Workaround, "points" and "commas" are in the same digit*/
+      if (digits[i] == ',' || digits[i] == '.')
+        vfd.print(" ");
+    }
+    vfdTimer = now;
+  }
+  
   // INPUTS
   // Update current state of all inputs
   for(int i=0; i<numReels; i++) { optoSensors[i].update(); }
@@ -254,9 +330,10 @@ void loop() {
   if(coinSensor.fell()){
     logMessage(F("Coin inserted"));
 
-  Wire.beginTransmission(9);
-  Wire.write(0x01);
-  Wire.endTransmission();
+    credits++;
+    Wire.beginTransmission(9);
+    Wire.write(0x01);
+    Wire.endTransmission();
     
     mp3.play(17); 
   }
@@ -264,6 +341,7 @@ void loop() {
     logMessage(F("Button 0 pressed"));
     mp3.play(7);
     digitalWrite(relayOutPins[0], LOW);
+    ResetReels();
   }
   else if(buttons[0].rose()) {
     logMessage(F("Button 0 released"));
@@ -273,60 +351,112 @@ void loop() {
     logMessage(F("Button 1 pressed"));
     mp3.play(1);
     digitalWrite(relayOutPins[1], LOW);
-    nudge(0,1);
-  }  
+    nudge(1,1);
+    nudge(2,2);  
+  }
+  else if(buttons[1].rose()) {
+    logMessage(F("Button 1 released"));
+    digitalWrite(relayOutPins[1], HIGH);
+  }   
   if(buttons[2].fell()) {
     logMessage(F("Button 2 pressed"));
     digitalWrite(relayOutPins[2], LOW);
     mp3.play(2);
-    nudge(1,1);
+    //nudge(2,1);
+    //nudge(3,1); 
+    stepperActive[1] = !stepperActive[1];
   }
+  else if(buttons[2].rose()) {
+    logMessage(F("Button 2 released"));
+    digitalWrite(relayOutPins[2], HIGH);
+  }   
   if(buttons[3].fell()) {
     logMessage(F("Button 3 pressed"));
     digitalWrite(relayOutPins[3], LOW);
     mp3.play(3);
-    nudge(2,1);
+    //nudge(2,1);
+    //nudge(4,1); 
+    stepperActive[2] = !stepperActive[2];
   }
+  else if(buttons[3].rose()) {
+    logMessage(F("Button 3 released"));
+    digitalWrite(relayOutPins[3], HIGH);
+  }   
   if(buttons[4].fell()) {
     logMessage(F("Button 4 pressed"));
     digitalWrite(relayOutPins[4], LOW);
     mp3.play(4);
+    /*
+    Wire.beginTransmission(9);
+    Wire.write(0x04);
+    Wire.endTransmission();
     nudge(3,1);
+    */
+    stepperActive[3] = !stepperActive[3];
   }
+  else if(buttons[4].rose()) {
+    logMessage(F("Button 4 released"));
+    digitalWrite(relayOutPins[4], HIGH);
+  }   
   if(buttons[5].fell()) {
     logMessage(F("Button 5 pressed"));
     digitalWrite(relayOutPins[5], LOW);
     mp3.play(5);
+    Wire.beginTransmission(9);
+    Wire.write(0x05);
+    Wire.endTransmission();
     randomSpin();
   }
+  else if(buttons[5].rose()) {
+    logMessage(F("Button 5 released"));
+    digitalWrite(relayOutPins[5], HIGH);
+  }   
   if(buttons[6].fell()) {
     logMessage(F("Button 6 pressed"));
     digitalWrite(relayOutPins[6], LOW);
     mp3.play(6);
+    Wire.beginTransmission(9);
+    Wire.write(0x06);
+    Wire.endTransmission();
     winningSpin();
+  }
+  else if(buttons[6].rose()) {
+    logMessage(F("Button 6 released"));
+    digitalWrite(relayOutPins[6], HIGH);
   }   
   if(RCinputs[0].fell()) {
     logMessage(F("RC Channel 0 pressed"));
+    Wire.beginTransmission(9);
+    Wire.write(0x00);
+    Wire.endTransmission();
     randomSpin();
     mp3.play(6);
-  }  
+  }
+  else if(RCinputs[0].rose()) {
+    logMessage(F("RC Channel 0 released"));
+    digitalWrite(relayOutPins[7], HIGH);
+  }
   if(RCinputs[1].fell()) {
     logMessage(F("RC Channel 1 pressed"));
+    Wire.beginTransmission(9);
+    Wire.write(0x01);
+    Wire.endTransmission();
     winningSpin();
   }  
   if(RCinputs[2].fell()) {
     logMessage(F("RC Channel 2 pressed"));
+    Wire.beginTransmission(9);
+    Wire.write(0x02);
+    Wire.endTransmission();
     mp3.play(6);
   }  
   if(RCinputs[3].fell()) {
     logMessage(F("RC Channel 3 pressed"));
+    Wire.beginTransmission(9);
+    Wire.write(0x13);
+    Wire.endTransmission();
     CalibrateReels();
     mp3.play(6);
-  }
-
-  if(RCinputs[0].rose()) {
-    logMessage(F("RC Channel 0 released"));
-    digitalWrite(relayOutPins[7], HIGH);
   }
 
   
@@ -373,12 +503,19 @@ void loop() {
   }
   // This gets called every frame, and processes any movement of the steppers as necessary
   for(int i=0; i<numReels; i++){
-    steppers[i].run();
+    //steppers[i].run();
 
+    if(stepperActive[i]){
+      steppers[i].runSpeed();
+    }
+
+    /*
+    // The following line is only used to conserve power when the stepper motors are not running
     if(stepperWasRunning[i] && !steppers[i].isRunning()){
       digitalWrite(stepperEnablePins[i], HIGH);
     }
-    stepperWasRunning[i] = steppers[i].isRunning();    
+    */
+    //stepperWasRunning[i] = steppers[i].isRunning();    
   }
 }
 
@@ -390,15 +527,19 @@ void nudge(int reelNum, int positions){
   steppers[reelNum].move(positions * STEPS_PER_VALUE);
 }
 
+
+
 /**
  * Spin all reels to an arbitrary position
  */
 void randomSpin(){
+  // Use playSL to loop music
+  mp3.playSL(18);  
   // Assign a random, increasing target to each reel
   for(int i=0; i<numReels; i++) {
     digitalWrite(stepperEnablePins[i], LOW);
     // Set *relative* position for each target
-    steppers[i].move(random(NUM_STEPS*(i+2),NUM_STEPS*(i+4)));
+    steppers[i].move(random(STEPS_PER_VALUE*(i+1)*12,STEPS_PER_VALUE*(i+2)*12));
   }
   bool allReelsStopped;
   do {
@@ -410,6 +551,8 @@ void randomSpin(){
       }
     }
   } while (!allReelsStopped);
+
+  mp3.play(21);  
 }
 
 /**
@@ -423,6 +566,8 @@ void winningSpin(){
     // Calculate *absolute* position that is next multiple of whole number of revolutions
     long target = roundUp(steppers[i].currentPosition(), NUM_STEPS);
     target += NUM_STEPS * ((i+1)*2);
+    int winningSymbolPosition[] = {5, 3, 3, 3}; 
+    target += winningSymbolPosition[i] * STEPS_PER_VALUE;
     // moveTo is absolute
     steppers[i].moveTo(target);
   }
@@ -438,4 +583,24 @@ void winningSpin(){
   } while (!allReelsStopped);
   
   mp3.play(20);
+}
+
+void ResetReels() { 
+  for(int i=0; i<numReels; i++) {
+    digitalWrite(stepperEnablePins[i], LOW);
+    // Calculate *absolute* position that is next multiple of whole number of revolutions
+    long target = roundUp(steppers[i].currentPosition(), NUM_STEPS);
+    // moveTo is absolute
+    steppers[i].moveTo(target);
+  }
+  bool allReelsStopped;
+  do {
+    allReelsStopped = true;
+    for(int i=0; i<numReels; i++){
+      steppers[i].run();
+      if(steppers[i].isRunning()){
+        allReelsStopped = false;
+      }
+    }
+  } while (!allReelsStopped);
 }

@@ -1,6 +1,9 @@
 // DEFINES
 #define ArrayLength(x) (sizeof(x) / sizeof((x)[0]))
 
+// INCLUDES
+#include <Wire.h>
+
 // CONSTANTS
 // Good explanation here: https://lastminuteengineers.com/74hc595-shift-register-arduino-tutorial/
 // Strobe/Latch/RCLK (also sometimes confusingly called "Clock", as in "clocking in") (pin 1) of TPIC6B595
@@ -9,6 +12,10 @@ int strobePin = 10;
 int dataPin = 11;
 // Clock/SRCLK Pin connected to Clock (pin 3) of TPIC6B595
 int clockPin = 13;
+
+const byte numAnodes = 8;// 8;
+const byte numCathodes = 14; //14;
+
 // The predefined light patterns to toggle between
 // If, rather than using predefined patterns you'd like to dynamically turn on or off outputs from the shift register,
 // look at bitSet(), bitClear(), bitWrite()
@@ -48,22 +55,53 @@ void setup() {
   // digitalWrite(oePin, HIGH);
 }
 
+
+// See https://forum.arduino.cc/t/find-nearest-multiple-of-8-from-a-variable/255420/16
+int numRegisters(int x){
+  return (x + 7) >> 3;
+}
+
+void prntBits(byte b)
+{
+  for(int i = 7; i >= 0; i--)
+    Serial.print(bitRead(b,i));
+  Serial.println();  
+}
+
 void loop() {
 
-  for(int a=0;a<8;a++){
-    for(int b=0;b<8;b++){
+  byte numAnodeRegisters = numRegisters(numAnodes);
+  byte numCathodeRegisters = numRegisters(numCathodes);
+
+  for(uint8_t a=0;a<numAnodes;a++){
+    for(uint8_t b=0;b<numCathodes;b++){
+
+      unsigned long l = (unsigned long)1L<<b;
+
       // Set strobe pin low to begin storing bits  
       digitalWrite(strobePin, LOW);
       
-      // Then shift in the values for each register - one byte per register, and last first
-      shiftOut(dataPin, clockPin, MSBFIRST, getBytePattern(a));
-      shiftOut(dataPin, clockPin, MSBFIRST, getBytePattern(b));
-      shiftOut(dataPin, clockPin, MSBFIRST, 255);
-      shiftOut(dataPin, clockPin, MSBFIRST, 255);
-    
+      // Shift in the values for each register - one byte per register, and last first
+      shiftOut(dataPin, clockPin, MSBFIRST, (byte)(1<<a));
+      
+      // High 8 bits
+      shiftOut(dataPin, clockPin, MSBFIRST, (l>>8));
+
+      // Low 8 bits
+      shiftOut(dataPin, clockPin, MSBFIRST, (byte)l);
+
       // Set strobe pin high to stop storing bits
       digitalWrite(strobePin, HIGH);
       delay(250);
+
+      Serial.print(a);
+      Serial.print(",");
+      Serial.print(b);
+      Serial.println("");
+      prntBits(1<<a);
+      prntBits(l>>8);
+      prntBits(l);//&0x00FF);
+      Serial.println("---");
       
     }
   }

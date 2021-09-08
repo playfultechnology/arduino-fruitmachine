@@ -11,16 +11,16 @@ int strobePin = 10;
 int dataPin = 11;
 //Pin connected to Clock (pin 3) of 4094
 int clockPin = 13;
-const byte numDisplays = 9;
+// There are 9 chained digits
+const byte numDigits = 9;
 
-
-char valueToDisplay[numDisplays] = {'s', 't', 'a', ' ', ' ', ' ', ' ', ' ', ' '};
+char valueToDisplay[numDigits] = {'s', 't', 'a', 'r', 't', 'n', 'o', 'b', 's'};
 
 void CountUp() {
   // Find out the number of seconds passed since the code started
-  unsigned long secondsElapsed = millis()/100;
-  // Loop over each display
-  for(int i=0; i<=numDisplays; i++){
+  unsigned long secondsElapsed = 123456789 + millis()/100;
+  // Loop over each digit starting from the right-most
+  for(int i=numDigits-1; i>=0; i--){
     // Get the value of the current "unit" (ones, tens, hundreds etc.)
     uint8_t digit = secondsElapsed % 10;
     // Look up the binary representation of the corresponding digit 
@@ -48,17 +48,17 @@ byte getSegments(char c) {
 void loop() {
 
   CountUp();
-
-  digitalWrite(strobePin, LOW);
-  //count up routine
-  for (int i = 0; i < numDisplays; i++) {
-    //set strobe pin low to begin storing bits 
-  //  shiftOut(dataPin, clockPin, MSBFIRST,  1<<-i);
-    // Then shift in the value of which segment anodes will be lit
-    shiftOut(dataPin, clockPin, MSBFIRST, getSegments(valueToDisplay[i]));  
-    }
-    //set strobe pin high to stop storing bits
-    digitalWrite(strobePin, HIGH);
-    delay(100);
   
+  // Set strobe pin low to begin storing bits 
+  digitalWrite(strobePin, LOW);
+
+  // Each value gets shifted down by the next that gets sent, 
+  // so we loop backwards over the array to send the last value first
+  for (int i=numDigits-1; i>=0; i--) {
+    // Shift in the value to determine which segments of this digit will be lit
+    shiftOut(dataPin, clockPin, MSBFIRST, getSegments(valueToDisplay[i]));  
+  }
+  // Set strobe pin high to stop storing bits
+  digitalWrite(strobePin, HIGH);
+  delay(100);
 }
