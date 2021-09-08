@@ -114,7 +114,12 @@ void receiveEvent(int howMany) {
         Reset();
         break;
       case 0x01:
-        Start();
+        if(state != State::Active) {
+          Start();
+        }
+        else {
+          Stop();
+        }
         break;
       case 0x02:
         Stop();
@@ -171,11 +176,12 @@ void loop() {
     }
   }
   else if(state == State::Inactive){
-
+    /*
     if(currentTime - lastUpdateTime > 3000){
       setRandomNumber();
       lastUpdateTime = currentTime;
     }
+    */
   }
 
   // Loop over every digit

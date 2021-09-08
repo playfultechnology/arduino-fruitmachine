@@ -58,6 +58,7 @@ const byte numReels = 4;
 // Use the X/Y min/max end stop pins to wire the opto sensors
 const byte optoSensorPins[numReels] = {X_MIN_PIN, X_MAX_PIN, Y_MIN_PIN, Y_MAX_PIN};
 const byte stepperEnablePins[numReels] = {X_ENABLE_PIN, Y_ENABLE_PIN, Z_ENABLE_PIN, E_ENABLE_PIN};
+const int stepperSpeeds[numReels] = {60, 16, 20, 24};
 // Inputs are connected to GPIO pins on the AUX-2 board
 const byte numButtons = 7;
 const byte buttonPins[numButtons] = {63, 59, 40, 64, 42,  44, 65};
@@ -74,7 +75,7 @@ const byte numRelays = 8;
 const byte relayOutPins[numRelays] = {35, 37, 39, 41, 43, 45, 47, 32};
 // I2C address of daughterboard that will control 7-segment LED display
 const byte slave7SegmentAddress = 9;
-
+const int winningSymbolPositions[] = {0, 3, 3, 3};
 
 // GLOBALS
 // Define each stepper and the pins it will use
@@ -83,28 +84,31 @@ AccelStepper stepperY(AccelStepper::DRIVER, Y_STEP_PIN, Y_DIR_PIN);
 AccelStepper stepperZ(AccelStepper::DRIVER, Z_STEP_PIN, Z_DIR_PIN);
 AccelStepper stepperE(AccelStepper::DRIVER, E_STEP_PIN, E_DIR_PIN);
 AccelStepper steppers[4] = {stepperX, stepperY, stepperZ, stepperE};
+byte stepperActive[4] = {0,0,0,0};
+bool stepperWasRunning[numReels] = {};
 
+// VFD display
+Samsung_16LF01_VFD vfd(VFDClockPin, VFDDataPin, VFDResetPin);
 unsigned long vfdTimer = 0;
-char message[64] = "Welcome to CluedUp casino! Insert one quarter to play!         ";
+// The complete message to be displayed
+char message[64] = "                                                               ";
+// The characters currently displayed on the VFD
 char digits[17] = "                ";
 int firstDigit = 0;
 int lastDigit = strlen(message) - 1;
-
-unsigned int credits;
-
-byte stepperActive[4] = {0,0,0,0};
-
-
-bool stepperWasRunning[numReels] = {};
 
 // Array of Bounce objects to help read each time a reel tab spins past the opto-sensor
 Bounce optoSensors[numReels] = {};
 Bounce buttons[numButtons] = {};
 Bounce RCinputs[numRCs] = {};
 Bounce coinSensor;
+unsigned int credits;
+
+// Audio player
 SerialMP3Player mp3;
 
-Samsung_16LF01_VFD vfd(VFDClockPin, VFDDataPin, VFDResetPin);
+enum GameState {Initialising, AwaitingCoin, Ready, Spinning};
+GameState gameState = GameState::Initialising;
 
 // Initial setup
 void setup() {
@@ -128,20 +132,8 @@ void setup() {
     
     // AccelStepper speed is express in steps/sec
     // So, for a reel with NUM_STEPS 48, setMaxSpeed(60), means (60*60/48)= 75RPM
-    steppers[i].setMaxSpeed(60);
-
-    steppers[0].setMaxSpeed(60);
-    steppers[1].setMaxSpeed(20);
-    steppers[2].setMaxSpeed(24);
-    steppers[3].setMaxSpeed(28);
-
-
-    steppers[0].setSpeed(60);
-    steppers[1].setSpeed(20);
-    steppers[2].setSpeed(24);
-    steppers[3].setSpeed(24); 
-
-    
+    // steppers[i].setMaxSpeed(60);
+    steppers[i].setMaxSpeed(stepperSpeeds[i]);    
     steppers[i].setAcceleration(150);
   }
   // Initialise input buttons
@@ -149,7 +141,7 @@ void setup() {
     buttons[i].attach(buttonPins[i], INPUT_PULLUP);
   }
   coinSensor.attach(coinPin, INPUT_PULLUP);
-
+  // Initialise RC inputs
   for(int i=0; i<numRCs; i++){
     RCinputs[i].attach(RCinputPins[i], INPUT_PULLUP);
   }
@@ -174,7 +166,6 @@ void setup() {
   vfd.clear();
   /*Go to the first digit display*/
   vfd.setCursor(0);
-
   // Display a welcome static message
   vfd.print("Calibrating...");
   delay(1000);
@@ -182,14 +173,8 @@ void setup() {
   /*Go to the first digit display*/
   vfd.setCursor(0);
 
-  Serial.println(F("Send 999 to calibrate"));
-  Serial.println(F("Send 1/2/3/4 to nudge reels up"));
-  Serial.println(F("Send 5/6/7/8 to nudge reels down"));  
-  Serial.println(F("Send 200 for random spin"));  
-  Serial.println(F("Send 300 for winning spin"));
-
   // Calibrate reels to determine "zero" point
-  // CalibrateReels();
+  CalibrateReels();
 }
 
 
@@ -199,8 +184,6 @@ void StartCountdown() {
   Wire.write(0);
   Wire.endTransmission();
 }
-
-
 
 /**
  * Reset procedure as described in 20RM_MK2_STI manual
@@ -245,32 +228,17 @@ void CalibrateReels(){
       }
       // When the tab crosses through the sensor for the third time
       if(numTriggers > 2){
-        // Immediately set motor speed to zero
         //steppers[i].setSpeed(0);
         //steppers[i].stop();
+        // Set current position also immediately sets speed to zero (and therefore stops the motor)
         steppers[i].setCurrentPosition(0);
-        //steppers[i].move(NUM_STEPS);
-        delay(500);
+        delay(200);
         break;
       }
     }
     if(numTriggers <= 1) {
       logMessage(F("Calibration failed"));
     }
-    // Carry on calling run() after stop() - see https://groups.google.com/g/accelstepper/c/i92AHogeAXU?pli=1
-    for(int n=0; n<50; n++){
-      steppers[i].run();
-    }
-    delay(500);
-
-    // According to calibration procedure, we then need to move one more step
-    //steppers[i].move(-1);
-    //while(steppers[i].distanceToGo() != 0) {
-    //  steppers[i].run();
-   // }
-    
-    // Set zero position
-    steppers[i].setCurrentPosition(0);
 
     // Now that calibration is complete, restore the normal max motor speed
     steppers[i].setMaxSpeed(maxSpeed);
@@ -278,48 +246,37 @@ void CalibrateReels(){
     // Disable motor driver to conserve power
     // digitalWrite(stepperEnablePins[i], HIGH);
 
+    // Play a sound effect
     mp3.play(i+1);
-    
-    delay(500);
+    // Slight pause before calibrating next motor
+    delay(100);
   }
   Serial.println(F("Calibration complete"));
 }
 
 
-void loop() {
-
-
-if(credits == 0){
-  strcpy(message, "Welcome to CluedUp casino! Insert one quarter to play!         ");
-}
-else {
-  strcpy(message, "Spin the reels! Get three Jackpots to win a prize!             ");
-}
-
+void UpdateVFD(){
   unsigned long now = millis();
-
   if(now - vfdTimer > 250){
-
-    for(int i=0; i<15; i++) {
-      digits[i] = digits[i + 1];
-    }
+    // Move all the chars in the array one to the left
+    for(int i=0; i<15; i++) { digits[i] = digits[i + 1]; }
+    // Place the next new digit in the rightmost character slot
     digits[15] = message[firstDigit];
-  
-    if (firstDigit == lastDigit)
-      firstDigit = 0;
-    else
-      firstDigit = firstDigit + 1;
-  
-    for (int i=0; i<16; i++) {
+    // Increment the counter (and loop back if we get to the end of the message)
+    if (firstDigit == lastDigit) { firstDigit = 0; }
+    else { firstDigit = firstDigit + 1; }
+
+    // Now actually update the display with the new array value
+    for(int i=0; i<16; i++) {
       vfd.print(digits[i]);
-  
-      /*Workaround, "points" and "commas" are in the same digit*/
-      if (digits[i] == ',' || digits[i] == '.')
-        vfd.print(" ");
+      // Workaround, "points" and "commas" are in the same digit
+      if (digits[i] == ',' || digits[i] == '.') { vfd.print(" "); }
     }
     vfdTimer = now;
   }
-  
+}
+
+void loop() {
   // INPUTS
   // Update current state of all inputs
   for(int i=0; i<numReels; i++) { optoSensors[i].update(); }
@@ -327,195 +284,133 @@ else {
   for(int i=0; i<numRCs; i++) { RCinputs[i].update(); }
   coinSensor.update();
 
-  if(coinSensor.fell()){
-    logMessage(F("Coin inserted"));
-
-    credits++;
-    Wire.beginTransmission(9);
-    Wire.write(0x01);
-    Wire.endTransmission();
-    
-    mp3.play(17); 
-  }
-  if(buttons[0].fell()) {
-    logMessage(F("Button 0 pressed"));
-    mp3.play(7);
-    digitalWrite(relayOutPins[0], LOW);
-    ResetReels();
-  }
-  else if(buttons[0].rose()) {
-    logMessage(F("Button 0 released"));
-    digitalWrite(relayOutPins[0], HIGH);
-  }    
-  if(buttons[1].fell()) {
-    logMessage(F("Button 1 pressed"));
-    mp3.play(1);
-    digitalWrite(relayOutPins[1], LOW);
-    nudge(1,1);
-    nudge(2,2);  
-  }
-  else if(buttons[1].rose()) {
-    logMessage(F("Button 1 released"));
-    digitalWrite(relayOutPins[1], HIGH);
-  }   
-  if(buttons[2].fell()) {
-    logMessage(F("Button 2 pressed"));
-    digitalWrite(relayOutPins[2], LOW);
-    mp3.play(2);
-    //nudge(2,1);
-    //nudge(3,1); 
-    stepperActive[1] = !stepperActive[1];
-  }
-  else if(buttons[2].rose()) {
-    logMessage(F("Button 2 released"));
-    digitalWrite(relayOutPins[2], HIGH);
-  }   
-  if(buttons[3].fell()) {
-    logMessage(F("Button 3 pressed"));
-    digitalWrite(relayOutPins[3], LOW);
-    mp3.play(3);
-    //nudge(2,1);
-    //nudge(4,1); 
-    stepperActive[2] = !stepperActive[2];
-  }
-  else if(buttons[3].rose()) {
-    logMessage(F("Button 3 released"));
-    digitalWrite(relayOutPins[3], HIGH);
-  }   
-  if(buttons[4].fell()) {
-    logMessage(F("Button 4 pressed"));
-    digitalWrite(relayOutPins[4], LOW);
-    mp3.play(4);
-    /*
-    Wire.beginTransmission(9);
-    Wire.write(0x04);
-    Wire.endTransmission();
-    nudge(3,1);
-    */
-    stepperActive[3] = !stepperActive[3];
-  }
-  else if(buttons[4].rose()) {
-    logMessage(F("Button 4 released"));
-    digitalWrite(relayOutPins[4], HIGH);
-  }   
-  if(buttons[5].fell()) {
-    logMessage(F("Button 5 pressed"));
-    digitalWrite(relayOutPins[5], LOW);
-    mp3.play(5);
-    Wire.beginTransmission(9);
-    Wire.write(0x05);
-    Wire.endTransmission();
-    randomSpin();
-  }
-  else if(buttons[5].rose()) {
-    logMessage(F("Button 5 released"));
-    digitalWrite(relayOutPins[5], HIGH);
-  }   
-  if(buttons[6].fell()) {
-    logMessage(F("Button 6 pressed"));
-    digitalWrite(relayOutPins[6], LOW);
-    mp3.play(6);
-    Wire.beginTransmission(9);
-    Wire.write(0x06);
-    Wire.endTransmission();
-    winningSpin();
-  }
-  else if(buttons[6].rose()) {
-    logMessage(F("Button 6 released"));
-    digitalWrite(relayOutPins[6], HIGH);
-  }   
+  // Timer control from RC
   if(RCinputs[0].fell()) {
     logMessage(F("RC Channel 0 pressed"));
     Wire.beginTransmission(9);
     Wire.write(0x00);
     Wire.endTransmission();
-    randomSpin();
-    mp3.play(6);
-  }
-  else if(RCinputs[0].rose()) {
-    logMessage(F("RC Channel 0 released"));
-    digitalWrite(relayOutPins[7], HIGH);
   }
   if(RCinputs[1].fell()) {
     logMessage(F("RC Channel 1 pressed"));
     Wire.beginTransmission(9);
     Wire.write(0x01);
     Wire.endTransmission();
-    winningSpin();
   }  
   if(RCinputs[2].fell()) {
     logMessage(F("RC Channel 2 pressed"));
-    Wire.beginTransmission(9);
-    Wire.write(0x02);
-    Wire.endTransmission();
-    mp3.play(6);
   }  
   if(RCinputs[3].fell()) {
     logMessage(F("RC Channel 3 pressed"));
-    Wire.beginTransmission(9);
-    Wire.write(0x13);
-    Wire.endTransmission();
-    CalibrateReels();
-    mp3.play(6);
   }
 
-  
-  // Test whether any input has been received on the serial connection
-  if(Serial.available() > 0){
-    // Read any integer sent
-    int command = Serial.parseInt();
-    // Sending 999 re-calibrates the reel
-    // (don't use 0 as that is the value parseInt() returns from reading, e.g. a linebreak)
-    if(command == 999){
-      CalibrateReels();
-      return;
-    }
-    else if(command == 1){
-      nudge(0, 1);
-    }
-    else if(command == 2){
-      nudge(1, 1);
-    }
-    else if(command == 3){
-      nudge(2, 1);
-    }
-    else if(command == 4){
-      nudge(3, 1);
-    }
-    else if(command == 5){
-      nudge(0, -1);
-    }
-    else if(command == 6){
-      nudge(1, -1);
-    }
-    else if(command == 7){
-      nudge(2, -1);
-    }
-    else if(command == 8){
-      nudge(3, -1);
-    }
-    else if(command == 200) {
-      randomSpin();
-    }
-    else if(command == 300) {
-      winningSpin();
-    }
-  }
-  // This gets called every frame, and processes any movement of the steppers as necessary
-  for(int i=0; i<numReels; i++){
-    //steppers[i].run();
+  // Update the VFD display
+  UpdateVFD();
 
-    if(stepperActive[i]){
-      steppers[i].runSpeed();
-    }
+  // Rest of behaviour depends on the current state of the game
+  switch(gameState){
 
-    /*
-    // The following line is only used to conserve power when the stepper motors are not running
-    if(stepperWasRunning[i] && !steppers[i].isRunning()){
-      digitalWrite(stepperEnablePins[i], HIGH);
-    }
-    */
-    //stepperWasRunning[i] = steppers[i].isRunning();    
+    case GameState::Initialising:
+      // This should only occur on the first iteration of loop()  
+      vfd.clear();
+      vfd.setCursor(0);
+      strcpy(message, "Welcome to CluedUp casino! Insert one quarter to play!         ");
+      gameState = GameState::AwaitingCoin;
+      break;
+
+    case GameState::AwaitingCoin:
+      if(coinSensor.fell()){
+        logMessage(F("Coin inserted"));
+        gameState = GameState::Ready;
+        vfd.clear();
+        vfd.setCursor(0);
+        strcpy(message, "Spin the reels! Get three Jackpots to win a prize!             ");
+        mp3.play(17); 
+        // TODO
+        // Illuminate State/Gamble Button, and row of lights across the reels. And glass lights?
+      }
+      break;
+      
+    case GameState::Ready:
+      // Cancel
+      if(buttons[0].fell()) { }
+
+      // Start/Gamble
+      if(buttons[6].fell()) {
+        // TODO
+        // Deilluminate State/Gbamble button, Illuminate 3x nudge buttons, and row of lights across the reels
+        
+        logMessage(F("Button 6 pressed"));
+        mp3.play(6);
+        // Use playSL to loop music
+        mp3.playSL(18);
+        // We don't spin the leftmost reel
+        for(int i=1; i<numReels; i++) {
+          digitalWrite(stepperEnablePins[i], LOW);
+          // Calculate *absolute* position that is next multiple of whole number of revolutions
+          long target = roundUp(steppers[i].currentPosition(), NUM_STEPS);
+          // Then add on a further number of whole revolutions 
+          target += NUM_STEPS * 10;
+          // moveTo is absolute
+          steppers[i].moveTo(target);
+        }
+        gameState = GameState::Spinning;
+      }
+      break;
+      
+    case GameState::Spinning:
+      if(buttons[2].fell()) {
+        logMessage(F("Button 2 pressed"));
+        //steppers[1].setSpeed(0);
+        //steppers[1].stop();
+        long target = roundUp(steppers[1].currentPosition(), STEPS_PER_VALUE);
+        // moveTo is absolute
+        steppers[1].moveTo(target);
+      }
+      if(buttons[3].fell()) {
+        logMessage(F("Button 3 pressed"));
+        //steppers[2].setSpeed(0);
+        //steppers[2].stop();
+        long target = roundUp(steppers[2].currentPosition(), STEPS_PER_VALUE);
+        // moveTo is absolute
+        steppers[2].moveTo(target);        
+      }
+      if(buttons[4].fell()) {
+        logMessage(F("Button 4 pressed"));
+        // steppers[3].setSpeed(0);
+        // steppers[3].stop();
+        long target = roundUp(steppers[3].currentPosition(), STEPS_PER_VALUE);
+        // moveTo is absolute
+        steppers[3].moveTo(target);
+      }
+
+    
+      bool allReelsStopped = true;
+      // This gets called every frame, and processes any movement of the steppers as necessary
+      for(int i=0; i<numReels; i++){
+        steppers[i].run();
+        if(steppers[i].isRunning()){
+          allReelsStopped = false;
+        }
+      }
+      if(allReelsStopped) {
+        mp3.stop();        
+        bool winningLine = true;
+        for(int i=1; i<numReels; i++){
+          if(steppers[i].currentPosition() % NUM_STEPS != winningSymbolPositions[i]) {
+            winningLine = false;
+          }
+        }
+
+        if(winningLine) {
+          // Release maglock here
+        }
+        else {
+          //
+        }
+        gameState = GameState::Ready;
+      }
+      break;
   }
 }
 
@@ -526,8 +421,6 @@ void nudge(int reelNum, int positions){
   digitalWrite(stepperEnablePins[reelNum], LOW);
   steppers[reelNum].move(positions * STEPS_PER_VALUE);
 }
-
-
 
 /**
  * Spin all reels to an arbitrary position
