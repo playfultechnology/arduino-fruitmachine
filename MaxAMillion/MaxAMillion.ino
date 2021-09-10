@@ -294,8 +294,7 @@ void UpdateVFD(){
   }
 }
 
-void TransitionToAwaitingCoin() {
-  // This should only occur on the first iteration of loop()  
+void TransitionToAwaitingCoinState() {
   vfd.clear();
   vfd.setCursor(0);
   strcpy(message, "Welcome to CluedUp casino! Insert one quarter to play!         ");
@@ -307,7 +306,42 @@ void TransitionToAwaitingCoin() {
   gameState = GameState::AwaitingCoin;
 }
 
+void TransitionToReadyState() {
+  vfd.clear();
+  vfd.setCursor(0);
+  strcpy(message, "Spin the reels! Get three Jackpots to win a prize!             ");
+  mp3.play(17);
+  // Set the lamps on for this state
+  for(int i=0; i<8; i++){
+    // bitRead is LSB (i.e. reads bits from the right-hand side), so we subtract from 7 to make line up with relay order
+    digitalWrite(relayOutPins[i], bitRead(relayStateReady, 7-i) == 1 ? LOW : HIGH);
+  }
+  gameState = GameState::Ready;
+}
 
+void TransitionToSpinningState() {
+  //vfd.clear();
+  //vfd.setCursor(0);
+  //strcpy(message, "Spin the reels! Get three Jackpots to win a prize!             ");
+  // Use playSL to loop music
+  mp3.playSL(18);
+  // Set the lamps on for this state
+  for(int i=0; i<8; i++){
+    // bitRead is LSB (i.e. reads bits from the right-hand side), so we subtract from 7 to make line up with relay order
+    digitalWrite(relayOutPins[i], bitRead(relayStateSpinning, 7-i) == 1 ? LOW : HIGH);
+  }
+  // Calculate targets for all but the leftmost reel (the multiplier reel, which we don't use)
+  for(int i=1; i<numReels; i++) {
+    digitalWrite(stepperEnablePins[i], LOW);
+    // Calculate *absolute* position that is next multiple of whole number of revolutions
+    long target = roundUp(steppers[i].currentPosition(), NUM_STEPS);
+    // Then add on a further number of whole revolutions 
+    target += NUM_STEPS * 10;
+    // moveTo is absolute
+    steppers[i].moveTo(target);
+  }  
+  gameState = GameState::Spinning;
+}
 
 void loop() {
   // INPUTS
@@ -353,23 +387,13 @@ void loop() {
   switch(gameState){
 
     case GameState::Initialising:
-
+        TransitionToAwaitingCoinState();
       break;
 
     case GameState::AwaitingCoin:
       if(coinSensor.fell()){
         logMessage(F("Coin inserted"));
-        gameState = GameState::Ready;
-        vfd.clear();
-        vfd.setCursor(0);
-        strcpy(message, "Spin the reels! Get three Jackpots to win a prize!             ");
-        mp3.play(17); 
-        // Illuminate the glass lamps
-        digitalWrite(relayOutPins[0], LOW);
-        // Illuminate the Start/Gamble button
-        digitalWrite(relayOutPins[1], LOW);
-        // Illuminate the reel lamps
-        digitalWrite(relayOutPins[2], LOW);
+        TransitionToReadyState();
       }
       break;
       
@@ -380,23 +404,7 @@ void loop() {
       // Start/Gamble
       if(buttons[6].fell()) {        
         logMessage(F("Button 6 pressed"));
-        // De-light the Start/Gamble button
-        digitalWrite(relayOutPins[1], HIGH);
-        // Illuminate the hold buttons lamps
-        digitalWrite(relayOutPins[3], LOW);
-        // Use playSL to loop music
-        mp3.playSL(18);
-        // Calculate targets for all but the leftmost reel (the multiplier reel, which we don't use)
-        for(int i=1; i<numReels; i++) {
-          digitalWrite(stepperEnablePins[i], LOW);
-          // Calculate *absolute* position that is next multiple of whole number of revolutions
-          long target = roundUp(steppers[i].currentPosition(), NUM_STEPS);
-          // Then add on a further number of whole revolutions 
-          target += NUM_STEPS * 10;
-          // moveTo is absolute
-          steppers[i].moveTo(target);
-        }
-        gameState = GameState::Spinning;
+        TransitionToSpinningState();
       }
       break;
       
@@ -474,33 +482,16 @@ void loop() {
         if(winningLine) {
           Serial.println("WINNNNNNNERRRRRR!!!!");
           // Release maglock here
-
-          // De-light the Start/Gamble button
-          digitalWrite(relayOutPins[1], HIGH);
-          // De-light the hold buttons lamps
-          digitalWrite(relayOutPins[3], HIGH);
-          // Restore the initial speeds for each stepper
-          for(int i=0; i<numReels; i++){
-            steppers[i].setMaxSpeed(stepperSpeeds[i]);
-          }
-          // Now return to "Awaiting Coin Input" 
-          gameState = GameState::AwaitingCoin;
-          
+          digitalWrite(relayOutPins[4], LOW);
+          delay(250);
+          digitalWrite(relayOutPins[4], HIGH);
+          // Reset state
+          TransitionToAwaitingCoinState();
         }
         // Fail!
         else {
-          // Let them have another go
-          // Illuminate the Start/Gamble button
-          digitalWrite(relayOutPins[1], LOW);
-          // De-light the hold buttons lamps
-          digitalWrite(relayOutPins[3], HIGH);
-          // Reduce the speed slightly after each failure
-          /*
-          for(int i=0; i<numReels; i++){
-            steppers[i].setMaxSpeed(steppers[i].maxSpeed() * 0.9F);
-          }
-          */
-          gameState = GameState::Ready;
+          // Let them play again
+          TransitionToReadyState();
         }
       }
       break;
