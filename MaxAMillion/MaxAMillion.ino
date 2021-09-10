@@ -55,27 +55,46 @@
 
 // CONSTANTS
 const byte numReels = 4;
+const byte numSymbolsPerReel = 12;
 // Use the X/Y min/max end stop pins to wire the opto sensors
 const byte optoSensorPins[numReels] = {X_MIN_PIN, X_MAX_PIN, Y_MIN_PIN, Y_MAX_PIN};
 const byte stepperEnablePins[numReels] = {X_ENABLE_PIN, Y_ENABLE_PIN, Z_ENABLE_PIN, E_ENABLE_PIN};
-const int stepperSpeeds[numReels] = {60, 16, 20, 24};
+const int stepperSpeeds[numReels] = {60, 20, 20, 20};
 // Inputs are connected to GPIO pins on the AUX-2 board
 const byte numButtons = 7;
-const byte buttonPins[numButtons] = {63, 59, 40, 64, 42,  44, 65};
+// Buttons connected to these pins, from L-R: 1:Cancel, 2:Hold, 3:Hold, 4:Hold, 5:Hold, 6:Auto, 7:Start/Gamble
+const byte buttonPins[numButtons] = {63, 59, 40, 64, 42, 44, 65};
+// Button connected to opto-sensor to detect coin insertion
 const byte coinPin = 66;
 // VFD Starburst Display connected to AUX-3
 const byte VFDClockPin = 51;
 const byte VFDResetPin = 52;
 const byte VFDDataPin = 50;
+// Delay (in ms) at which VFD display scrolls
+const uint16_t vfdScrollDelay = 200;
 // RC input channels connected to Servos
 const byte numRCs = 4;
 const byte RCinputPins[numRCs] = {11, 6, 5, 4};
 // Relay outputs connected to lower AUX-4 pins
 const byte numRelays = 8;
+// 8-channel relay supplies 12VDC power to 0:Glass lamps, 1:Reel lamps, 2:Gamble Button lamp, 3:Hold Button Lamps, 4:Maglock release  
 const byte relayOutPins[numRelays] = {35, 37, 39, 41, 43, 45, 47, 32};
+// Initialising, AwaitingCoin, Ready, Spinning
+const byte relayStateInitialising = 0b00000000;
+const byte relayStateAwaitingCoin = 0b00000000;
+const byte relayStateReady = 0b11100000;
+const byte relayStateSpinning = 0b11010000;
+
 // I2C address of daughterboard that will control 7-segment LED display
 const byte slave7SegmentAddress = 9;
-const int winningSymbolPositions[] = {0, 3, 3, 3};
+enum Symbols {Diamond, Double, Treble, Zero, One, Three, Five, Max, Hat, Jackpot};
+const char* SymbolNames[] = {"Diamond", "Double", "Treble", "Zero", "One", "Three", "Five", "Max", "Hat", "Jackpot"};
+const byte ReelSymbols[numReels][numSymbolsPerReel] = {
+  {Diamond, Double, Diamond, Double, Diamond, Treble, Diamond, Double, Diamond, Treble, Diamond, Double},
+  {Max, Three, One, Jackpot, Hat, Five, One, Hat, Three, One, Five, One},
+  {Hat, Zero, Zero, Jackpot, Hat, Zero, Hat, Zero, Zero, Jackpot, Max, Zero},
+  {Max, Hat, Zero, Jackpot, Hat, Zero, Zero, Max, Zero, Hat, Zero, Zero}
+};
 
 // GLOBALS
 // Define each stepper and the pins it will use
@@ -84,11 +103,11 @@ AccelStepper stepperY(AccelStepper::DRIVER, Y_STEP_PIN, Y_DIR_PIN);
 AccelStepper stepperZ(AccelStepper::DRIVER, Z_STEP_PIN, Z_DIR_PIN);
 AccelStepper stepperE(AccelStepper::DRIVER, E_STEP_PIN, E_DIR_PIN);
 AccelStepper steppers[4] = {stepperX, stepperY, stepperZ, stepperE};
-byte stepperActive[4] = {0,0,0,0};
 bool stepperWasRunning[numReels] = {};
 
 // VFD display
 Samsung_16LF01_VFD vfd(VFDClockPin, VFDDataPin, VFDResetPin);
+// Used to keep track of when the VFD was last scrolled
 unsigned long vfdTimer = 0;
 // The complete message to be displayed
 char message[64] = "                                                               ";
@@ -102,7 +121,6 @@ Bounce optoSensors[numReels] = {};
 Bounce buttons[numButtons] = {};
 Bounce RCinputs[numRCs] = {};
 Bounce coinSensor;
-unsigned int credits;
 
 // Audio player
 SerialMP3Player mp3;
@@ -164,19 +182,18 @@ void setup() {
   vfd.print("Clued Up!");
   delay(1000);
   vfd.clear();
-  /*Go to the first digit display*/
+  // Reset cursor to the first digit
   vfd.setCursor(0);
   // Display a welcome static message
   vfd.print("Calibrating...");
   delay(1000);
   vfd.clear();
-  /*Go to the first digit display*/
+  // Reset cursor to the first digit
   vfd.setCursor(0);
 
   // Calibrate reels to determine "zero" point
   CalibrateReels();
 }
-
 
 void StartCountdown() {
   // Write command to slave
@@ -200,6 +217,7 @@ void CalibrateReels(){
 
   for(int i=0; i<numReels; i++) {
 
+    // Enable the driver
     digitalWrite(stepperEnablePins[i], LOW);
     
     // Store the current max speed
@@ -221,17 +239,16 @@ void CalibrateReels(){
       optoSensors[i].update();
       // Most opto-sensors go HIGH when an obstruction is detected
       if(optoSensors[i].rose()) {
-        //logMessage(F("Optosensor triggered"));
-        //mp3.play(1);
-        
+        // Increase the counter
         numTriggers++;
       }
       // When the tab crosses through the sensor for the third time
       if(numTriggers > 2){
+        // Set current position to zero
+        steppers[i].setCurrentPosition(0);
+        // (following lines are unnecessary as setCurrentPosition instantaneously sets speed to 0 anyway.
         //steppers[i].setSpeed(0);
         //steppers[i].stop();
-        // Set current position also immediately sets speed to zero (and therefore stops the motor)
-        steppers[i].setCurrentPosition(0);
         delay(200);
         break;
       }
@@ -248,6 +265,7 @@ void CalibrateReels(){
 
     // Play a sound effect
     mp3.play(i+1);
+    
     // Slight pause before calibrating next motor
     delay(100);
   }
@@ -257,7 +275,7 @@ void CalibrateReels(){
 
 void UpdateVFD(){
   unsigned long now = millis();
-  if(now - vfdTimer > 250){
+  if(now - vfdTimer > vfdScrollDelay){
     // Move all the chars in the array one to the left
     for(int i=0; i<15; i++) { digits[i] = digits[i + 1]; }
     // Place the next new digit in the rightmost character slot
@@ -266,7 +284,7 @@ void UpdateVFD(){
     if (firstDigit == lastDigit) { firstDigit = 0; }
     else { firstDigit = firstDigit + 1; }
 
-    // Now actually update the display with the new array value
+    // Now actually update the display with the new values in the char array
     for(int i=0; i<16; i++) {
       vfd.print(digits[i]);
       // Workaround, "points" and "commas" are in the same digit
@@ -276,11 +294,35 @@ void UpdateVFD(){
   }
 }
 
+void TransitionToAwaitingCoin() {
+  // This should only occur on the first iteration of loop()  
+  vfd.clear();
+  vfd.setCursor(0);
+  strcpy(message, "Welcome to CluedUp casino! Insert one quarter to play!         ");
+  // Set the lamps on for this state
+  for(int i=0; i<8; i++){
+    // bitRead is LSB (i.e. reads bits from the right-hand side), so we subtract from 7 to make line up with relay order
+    digitalWrite(relayOutPins[i], bitRead(relayStateInitialising, 7-i) == 1 ? LOW : HIGH);
+  }
+  gameState = GameState::AwaitingCoin;
+}
+
+
+
 void loop() {
   // INPUTS
   // Update current state of all inputs
   for(int i=0; i<numReels; i++) { optoSensors[i].update(); }
-  for(int i=0; i<numButtons; i++) { buttons[i].update(); }
+  for(int i=0; i<numButtons; i++) { 
+    buttons[i].update(); 
+    /*
+    if(buttons[i].changed()) {
+      Serial.print("Button ");
+      Serial.print(i);
+      Serial.println(" changed");
+    }
+    */
+  }
   for(int i=0; i<numRCs; i++) { RCinputs[i].update(); }
   coinSensor.update();
 
@@ -291,16 +333,16 @@ void loop() {
     Wire.write(0x00);
     Wire.endTransmission();
   }
-  if(RCinputs[1].fell()) {
+  else if(RCinputs[1].fell()) {
     logMessage(F("RC Channel 1 pressed"));
     Wire.beginTransmission(9);
     Wire.write(0x01);
     Wire.endTransmission();
   }  
-  if(RCinputs[2].fell()) {
+  else if(RCinputs[2].fell()) {
     logMessage(F("RC Channel 2 pressed"));
   }  
-  if(RCinputs[3].fell()) {
+  else if(RCinputs[3].fell()) {
     logMessage(F("RC Channel 3 pressed"));
   }
 
@@ -311,11 +353,7 @@ void loop() {
   switch(gameState){
 
     case GameState::Initialising:
-      // This should only occur on the first iteration of loop()  
-      vfd.clear();
-      vfd.setCursor(0);
-      strcpy(message, "Welcome to CluedUp casino! Insert one quarter to play!         ");
-      gameState = GameState::AwaitingCoin;
+
       break;
 
     case GameState::AwaitingCoin:
@@ -326,25 +364,29 @@ void loop() {
         vfd.setCursor(0);
         strcpy(message, "Spin the reels! Get three Jackpots to win a prize!             ");
         mp3.play(17); 
-        // TODO
-        // Illuminate State/Gamble Button, and row of lights across the reels. And glass lights?
+        // Illuminate the glass lamps
+        digitalWrite(relayOutPins[0], LOW);
+        // Illuminate the Start/Gamble button
+        digitalWrite(relayOutPins[1], LOW);
+        // Illuminate the reel lamps
+        digitalWrite(relayOutPins[2], LOW);
       }
       break;
       
     case GameState::Ready:
       // Cancel
-      if(buttons[0].fell()) { }
+      if(buttons[0].fell()) { ; }
 
       // Start/Gamble
-      if(buttons[6].fell()) {
-        // TODO
-        // Deilluminate State/Gbamble button, Illuminate 3x nudge buttons, and row of lights across the reels
-        
+      if(buttons[6].fell()) {        
         logMessage(F("Button 6 pressed"));
-        mp3.play(6);
+        // De-light the Start/Gamble button
+        digitalWrite(relayOutPins[1], HIGH);
+        // Illuminate the hold buttons lamps
+        digitalWrite(relayOutPins[3], LOW);
         // Use playSL to loop music
         mp3.playSL(18);
-        // We don't spin the leftmost reel
+        // Calculate targets for all but the leftmost reel (the multiplier reel, which we don't use)
         for(int i=1; i<numReels; i++) {
           digitalWrite(stepperEnablePins[i], LOW);
           // Calculate *absolute* position that is next multiple of whole number of revolutions
@@ -361,11 +403,17 @@ void loop() {
     case GameState::Spinning:
       if(buttons[2].fell()) {
         logMessage(F("Button 2 pressed"));
+        // This code will stop the reel immediately
         //steppers[1].setSpeed(0);
         //steppers[1].stop();
+        // This code will stop the reel at the next symbol
         long target = roundUp(steppers[1].currentPosition(), STEPS_PER_VALUE);
         // moveTo is absolute
         steppers[1].moveTo(target);
+        // Increase speed of other motors
+        //steppers[2].setMaxSpeed(steppers[2].maxSpeed() + 20);
+        //steppers[3].setMaxSpeed(steppers[3].maxSpeed() + 20);   
+        
       }
       if(buttons[3].fell()) {
         logMessage(F("Button 3 pressed"));
@@ -373,7 +421,10 @@ void loop() {
         //steppers[2].stop();
         long target = roundUp(steppers[2].currentPosition(), STEPS_PER_VALUE);
         // moveTo is absolute
-        steppers[2].moveTo(target);        
+        steppers[2].moveTo(target);  
+        // Increase speed of other motors
+        //steppers[1].setMaxSpeed(steppers[1].maxSpeed() + 20);
+        //steppers[3].setMaxSpeed(steppers[3].maxSpeed() + 20);       
       }
       if(buttons[4].fell()) {
         logMessage(F("Button 4 pressed"));
@@ -382,9 +433,11 @@ void loop() {
         long target = roundUp(steppers[3].currentPosition(), STEPS_PER_VALUE);
         // moveTo is absolute
         steppers[3].moveTo(target);
+        
+        //steppers[1].setMaxSpeed(steppers[1].maxSpeed() + 20);
+        //steppers[2].setMaxSpeed(steppers[2].maxSpeed() + 20); 
       }
-
-    
+      
       bool allReelsStopped = true;
       // This gets called every frame, and processes any movement of the steppers as necessary
       for(int i=0; i<numReels; i++){
@@ -397,103 +450,59 @@ void loop() {
         mp3.stop();        
         bool winningLine = true;
         for(int i=1; i<numReels; i++){
-          if(steppers[i].currentPosition() % NUM_STEPS != winningSymbolPositions[i]) {
+          // DEBUG ONLY - Print the values on which the steppers stopped
+          byte symbolPos = (steppers[i].currentPosition() % NUM_STEPS) / STEPS_PER_VALUE;
+          byte symbol = ReelSymbols[i][symbolPos];
+          Serial.print(steppers[i].currentPosition() % NUM_STEPS);
+          Serial.print(" (");
+          Serial.print(SymbolNames[symbol]);
+          Serial.print(")");
+          if(i<numReels-1) { Serial.print(","); }
+
+          if(symbol != Jackpot) {
             winningLine = false;
-          }
+          }          
+          
+          // Simpler test
+          // If any of the reels are not showing the winning symbol for that reel
+          // if((steppers[i].currentPosition() % NUM_STEPS) != winningSymbolPositions[i] * STEPS_PER_VALUE) {
+          //  winningLine = false;
+          //}
         }
 
+        // Win!
         if(winningLine) {
+          Serial.println("WINNNNNNNERRRRRR!!!!");
           // Release maglock here
+
+          // De-light the Start/Gamble button
+          digitalWrite(relayOutPins[1], HIGH);
+          // De-light the hold buttons lamps
+          digitalWrite(relayOutPins[3], HIGH);
+          // Restore the initial speeds for each stepper
+          for(int i=0; i<numReels; i++){
+            steppers[i].setMaxSpeed(stepperSpeeds[i]);
+          }
+          // Now return to "Awaiting Coin Input" 
+          gameState = GameState::AwaitingCoin;
+          
         }
+        // Fail!
         else {
-          //
+          // Let them have another go
+          // Illuminate the Start/Gamble button
+          digitalWrite(relayOutPins[1], LOW);
+          // De-light the hold buttons lamps
+          digitalWrite(relayOutPins[3], HIGH);
+          // Reduce the speed slightly after each failure
+          /*
+          for(int i=0; i<numReels; i++){
+            steppers[i].setMaxSpeed(steppers[i].maxSpeed() * 0.9F);
+          }
+          */
+          gameState = GameState::Ready;
         }
-        gameState = GameState::Ready;
       }
       break;
   }
-}
-
-/**
- * Nudge specified reel a certain number of positions
- */
-void nudge(int reelNum, int positions){
-  digitalWrite(stepperEnablePins[reelNum], LOW);
-  steppers[reelNum].move(positions * STEPS_PER_VALUE);
-}
-
-/**
- * Spin all reels to an arbitrary position
- */
-void randomSpin(){
-  // Use playSL to loop music
-  mp3.playSL(18);  
-  // Assign a random, increasing target to each reel
-  for(int i=0; i<numReels; i++) {
-    digitalWrite(stepperEnablePins[i], LOW);
-    // Set *relative* position for each target
-    steppers[i].move(random(STEPS_PER_VALUE*(i+1)*12,STEPS_PER_VALUE*(i+2)*12));
-  }
-  bool allReelsStopped;
-  do {
-    allReelsStopped = true;
-    for(int i=0; i<numReels; i++){
-      steppers[i].run();
-      if(steppers[i].isRunning()){
-        allReelsStopped = false;
-      }
-    }
-  } while (!allReelsStopped);
-
-  mp3.play(21);  
-}
-
-/**
- * Spin all reels and stop on a whole number of revolutions from the zero point
- */
-void winningSpin(){
-  // Use playSL to loop music
-  mp3.playSL(18);  
-  for(int i=0; i<numReels; i++) {
-    digitalWrite(stepperEnablePins[i], LOW);
-    // Calculate *absolute* position that is next multiple of whole number of revolutions
-    long target = roundUp(steppers[i].currentPosition(), NUM_STEPS);
-    target += NUM_STEPS * ((i+1)*2);
-    int winningSymbolPosition[] = {5, 3, 3, 3}; 
-    target += winningSymbolPosition[i] * STEPS_PER_VALUE;
-    // moveTo is absolute
-    steppers[i].moveTo(target);
-  }
-  bool allReelsStopped;
-  do {
-    allReelsStopped = true;
-    for(int i=0; i<numReels; i++){
-      steppers[i].run();
-      if(steppers[i].isRunning()){
-        allReelsStopped = false;
-      }
-    }
-  } while (!allReelsStopped);
-  
-  mp3.play(20);
-}
-
-void ResetReels() { 
-  for(int i=0; i<numReels; i++) {
-    digitalWrite(stepperEnablePins[i], LOW);
-    // Calculate *absolute* position that is next multiple of whole number of revolutions
-    long target = roundUp(steppers[i].currentPosition(), NUM_STEPS);
-    // moveTo is absolute
-    steppers[i].moveTo(target);
-  }
-  bool allReelsStopped;
-  do {
-    allReelsStopped = true;
-    for(int i=0; i<numReels; i++){
-      steppers[i].run();
-      if(steppers[i].isRunning()){
-        allReelsStopped = false;
-      }
-    }
-  } while (!allReelsStopped);
 }

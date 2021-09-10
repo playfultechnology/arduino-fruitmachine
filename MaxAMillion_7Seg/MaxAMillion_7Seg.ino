@@ -176,12 +176,7 @@ void loop() {
     }
   }
   else if(state == State::Inactive){
-    /*
-    if(currentTime - lastUpdateTime > 3000){
-      setRandomNumber();
-      lastUpdateTime = currentTime;
-    }
-    */
+    // Don't do anything to update the display
   }
 
   // Loop over every digit
