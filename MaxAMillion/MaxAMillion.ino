@@ -77,13 +77,13 @@ const byte numRCs = 4;
 const byte RCinputPins[numRCs] = {11, 6, 5, 4};
 // Relay outputs connected to lower AUX-4 pins
 const byte numRelays = 8;
-// 8-channel relay supplies 12VDC power to 0:Glass lamps, 1:Reel lamps, 2:Gamble Button lamp, 3:Hold Button Lamps, 4:Maglock release  
+// 8-channel relay supplies 12VDC power to 0:Glass lamps, 1:Reel lamps, 2:Gamble Button lamp, 3-5:Hold Button Lamps, 7:Maglock release  
 const byte relayOutPins[numRelays] = {35, 37, 39, 41, 43, 45, 47, 32};
 // Initialising, AwaitingCoin, Ready, Spinning
 const byte relayStateInitialising = 0b00000000;
 const byte relayStateAwaitingCoin = 0b00000000;
 const byte relayStateReady = 0b11100000;
-const byte relayStateSpinning = 0b11010000;
+const byte relayStateSpinning = 0b11011100;
 
 // I2C address of daughterboard that will control 7-segment LED display
 const byte slave7SegmentAddress = 9;
@@ -311,7 +311,7 @@ void TransitionToReadyState() {
   vfd.setCursor(0);
   strcpy(message, "Spin the reels! Get three Jackpots to win a prize!             ");
   mp3.play(17);
-  // Set the lamps on for this state
+  // Set the lamps for this state
   for(int i=0; i<8; i++){
     // bitRead is LSB (i.e. reads bits from the right-hand side), so we subtract from 7 to make line up with relay order
     digitalWrite(relayOutPins[i], bitRead(relayStateReady, 7-i) == 1 ? LOW : HIGH);
@@ -325,7 +325,7 @@ void TransitionToSpinningState() {
   //strcpy(message, "Spin the reels! Get three Jackpots to win a prize!             ");
   // Use playSL to loop music
   mp3.playSL(18);
-  // Set the lamps on for this state
+  // Set the lamps for this state
   for(int i=0; i<8; i++){
     // bitRead is LSB (i.e. reads bits from the right-hand side), so we subtract from 7 to make line up with relay order
     digitalWrite(relayOutPins[i], bitRead(relayStateSpinning, 7-i) == 1 ? LOW : HIGH);
@@ -411,6 +411,8 @@ void loop() {
     case GameState::Spinning:
       if(buttons[2].fell()) {
         logMessage(F("Button 2 pressed"));
+        // Turn off this hold button
+        digitalWrite(relayOutPins[3], HIGH);
         // This code will stop the reel immediately
         //steppers[1].setSpeed(0);
         //steppers[1].stop();
@@ -425,6 +427,8 @@ void loop() {
       }
       if(buttons[3].fell()) {
         logMessage(F("Button 3 pressed"));
+        // Turn off this hold button
+        digitalWrite(relayOutPins[4], HIGH);
         //steppers[2].setSpeed(0);
         //steppers[2].stop();
         long target = roundUp(steppers[2].currentPosition(), STEPS_PER_VALUE);
@@ -436,12 +440,14 @@ void loop() {
       }
       if(buttons[4].fell()) {
         logMessage(F("Button 4 pressed"));
+        // Turn off this hold button
+        digitalWrite(relayOutPins[5], HIGH);        
         // steppers[3].setSpeed(0);
         // steppers[3].stop();
         long target = roundUp(steppers[3].currentPosition(), STEPS_PER_VALUE);
         // moveTo is absolute
         steppers[3].moveTo(target);
-        
+        // Increase speed of other motors
         //steppers[1].setMaxSpeed(steppers[1].maxSpeed() + 20);
         //steppers[2].setMaxSpeed(steppers[2].maxSpeed() + 20); 
       }
@@ -466,11 +472,10 @@ void loop() {
           Serial.print(SymbolNames[symbol]);
           Serial.print(")");
           if(i<numReels-1) { Serial.print(","); }
-
+          // Check if all symbols are correct
           if(symbol != Jackpot) {
             winningLine = false;
           }          
-          
           // Simpler test
           // If any of the reels are not showing the winning symbol for that reel
           // if((steppers[i].currentPosition() % NUM_STEPS) != winningSymbolPositions[i] * STEPS_PER_VALUE) {
@@ -481,10 +486,12 @@ void loop() {
         // Win!
         if(winningLine) {
           Serial.println("WINNNNNNNERRRRRR!!!!");
+          // Play the "Winner" sound effect
+          mp3.play(20);
           // Release maglock here
-          digitalWrite(relayOutPins[4], LOW);
+          digitalWrite(relayOutPins[7], LOW);
           delay(250);
-          digitalWrite(relayOutPins[4], HIGH);
+          digitalWrite(relayOutPins[7], HIGH);
           // Reset state
           TransitionToAwaitingCoinState();
         }
