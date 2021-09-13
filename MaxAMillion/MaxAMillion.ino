@@ -380,7 +380,7 @@ void loop() {
     logMessage(F("RC Channel 3 pressed"));
   }
 
-  // Update the VFD display
+  // Update the VFD display by scrolling the current message
   UpdateVFD();
 
   // Rest of behaviour depends on the current state of the game
@@ -464,9 +464,9 @@ void loop() {
         mp3.stop();        
         bool winningLine = true;
         for(int i=1; i<numReels; i++){
-          // DEBUG ONLY - Print the values on which the steppers stopped
           byte symbolPos = (steppers[i].currentPosition() % NUM_STEPS) / STEPS_PER_VALUE;
           byte symbol = ReelSymbols[i][symbolPos];
+          // DEBUG ONLY - Print the values on which the steppers stopped          
           Serial.print(steppers[i].currentPosition() % NUM_STEPS);
           Serial.print(" (");
           Serial.print(SymbolNames[symbol]);
@@ -486,12 +486,18 @@ void loop() {
         // Win!
         if(winningLine) {
           Serial.println("WINNNNNNNERRRRRR!!!!");
+          // Display a message
+          vfd.clear();
+          // Reset cursor to the first digit
+          vfd.setCursor(0);
+          vfd.print("WINNNERRRRR!!!");
           // Play the "Winner" sound effect
           mp3.play(20);
           // Release maglock here
           digitalWrite(relayOutPins[7], LOW);
           delay(250);
           digitalWrite(relayOutPins[7], HIGH);
+          delay(5000);        
           // Reset state
           TransitionToAwaitingCoinState();
         }
