@@ -21,6 +21,7 @@
  * https://www.fruitemu.co.uk/ib/index.php?app=forums&module=forums&controller=topic&id=17419
  */
 // DEFINES
+/*
 #define DISPLAY_OFF 128
 #define DISPLAY_ON 129
 #define SET_BRIGHTNESS 132 // Followed by ASCII value from 1(brightest) to 6 (dimmest)
@@ -36,6 +37,7 @@
 #define FLASH_MODE_ON 200 // Only works if command 133 has not been sent. Use this code to allow the flash character (ascii 37) to work.
 #define INHIBIT_CLEAR_1 225 // First digit will not be cleared by CLEAR_SCREEN. Use 226-241 to inhibit other characters
 #define INHIBIT_RESET 255 // Removes any inhibit conditions set
+*/
 /*
 168+7 values Reprogram character to user defined graphic.  A bit tricky to use I will put a seperate section up for it. Also the 7 numbers after the Command code are not ascii values but are true 8 bit numbers. 
 184+1 value Unknown - Tried it every which way doesn't seem to have an effect on characters or display.
@@ -43,11 +45,54 @@
 245-249 Control of window areas,  I havent experimented with them yet.
 254/255 Reset window areas
 */
-/* Possible alternative flash commands 
+#define REVERSE_SCROLL 0xa3
+#define FORWARDS_SCROLL 0xa2
+#define REVERSE_NOSCROLL 0xa1
+#define FORWARDS_NOSCROLL 0xa0
+#define CLEAR_SCREEN 0xb1 // b3
 #define FLASH_SCREEN 0xd1 // contents stay flashing new chars dont
 #define FLASH_OFF 0xd2
 #define FLASH_LASTCHAR 0xd8 // make last char sent flash
- */
+#define SCREEN_OFF 0x80 // Doesn't clear contents
+#define SCREEN_ON 0x81 // contents re-display
+#define BRIGHTNESS 0x84 // followed by brightness byte (0==full 7=lowest) needs extended commands
+#define ENABLE_EXTENDED 0x85 // turn on extra commands
+#define ENABLE_LOWERCASE 0xbc // turn on extended font
+#define USER_DEFINED_SUMMIT 0xa8 //  (for making user defined char)
+#define SCROLL_FROM_0 0xe0
+#define SCROLL_FROM_1 0xe1
+#define SCROLL_FROM_2 0xe2
+#define SCROLL_FROM_3 0xe3
+#define SCROLL_FROM_4 0xe4
+#define SCROLL_FROM_5 0xe5
+#define SCROLL_FROM_6 0xe6
+#define SCROLL_FROM_7 0xe7
+#define SCROLL_FROM_8 0xe8
+#define SCROLL_FROM_9 0xe9
+#define SCROLL_FROM_10 0xea
+#define SCROLL_FROM_11 0xeb
+#define SCROLL_FROM_12 0xec
+#define SCROLL_FROM_13 0xed
+#define SCROLL_FROM_14 0xee
+#define SCROLL_FROM_15 0xef
+#define POS_1 0x90
+#define POS_2 0x91
+#define POS_3 0x92
+#define POS_4 0x93
+#define POS_5 0x94
+#define POS_6 0x95
+#define POS_7 0x96
+#define POS_8 0x97
+#define POS_9 0x98
+#define POS_10 0x99
+#define POS_11 0x9a
+#define POS_12 0x9b
+#define POS_13 0x9c
+#define POS_14 0x9d
+#define POS_15 0x9e
+#define POS_16 0x9f
+
+
 
 // CONSTANTS
 // We will not be using any hardware SPI interface, so these can be assigned to any GPIO pins you want
@@ -101,102 +146,36 @@ void setup() {
   pinMode(dataPin, OUTPUT);
   pinMode(resetPin, OUTPUT);
 
-  // Reset the display to ensure it wasn't halfway through processing a command
-  digitalWrite(resetPin, HIGH);
-  delay(100);
-  digitalWrite(resetPin, LOW);
-  delay(1000);
+  Reset_VFD();
+  WriteData(SCREEN_ON);
 
-  // Start printing at first character
-  WriteData(144);
-
-  // Scroll To Left
-  WriteData(162);
-
-  Write("Ex-Slot Machine", 15);
-  delay(1000);
-  //attract();
-}
-
-void attract(){
-
-  WriteData(SCROLL_LTR);
-  Write("This is a scrolling message...", 30, 200);
-  Write("                ", 16, 200);
-  Write("You can scroll slowly...", 24, 400);
-  Write("                ", 16, 400);
-  Write("Or you can scroll quickly", 25, 75);
-  Write("                ", 16, 50);
-
-  WriteData(SCROLL_RTL);
-  Write("Or even backwards", 17, 300);
-  Write("                ", 16, 300);
+WriteData(ENABLE_EXTENDED);
+WriteData(BRIGHTNESS);
+WriteData(0);
   
-  delay(1000);
-  WriteData(SCROLL_LTR);
-  WriteData(FLASH_MODE_ON);
-  Write("You can also F%L%A%S%H% letters", 31, 200);
-  Write("                ", 16, 200);
-  delay(1000);
-
-  WriteData(WRAP_LTR);
-  Write("Or Stack letters", 16, 200);
-  delay(1000);
-  WriteData(CLEAR_SCREEN);
-  WriteData(SCROLL_LTR);
-  Write("L               ", 16, 100);
-  WriteData(INHIBIT_CLEAR_1);
-  Write("I               ", 15, 100);
-  WriteData(INHIBIT_CLEAR_1+1);
-  Write("K               ", 14, 100);
-  WriteData(INHIBIT_CLEAR_1+2);
-  Write("E               ", 13, 100);
-  WriteData(INHIBIT_CLEAR_1+3);
-  Write("                ", 12);
-  WriteData(INHIBIT_CLEAR_1+4);
-  Write("T               ", 11, 100);
-  WriteData(INHIBIT_CLEAR_1+5);
-  Write("H               ", 10, 100);  
-  WriteData(INHIBIT_CLEAR_1+6);
-  Write("I               ", 9, 100);
-  WriteData(INHIBIT_CLEAR_1+7);
-  Write("S               ", 8, 100);
-
-  WriteData(INHIBIT_RESET);
-
-  delay(3000);
-
-  WriteData(CLEAR_SCREEN);
-  for(int i=1;i<8;i++){
-    WriteData(START_ADDRESS_1);    
-    WriteData(SET_BRIGHTNESS);
-    WriteData((char)i);
-    Write("BRIGHTNESS ", 11);
-    char buffer[2];
-    itoa(i,buffer,10);    
-    Write(buffer,2);
-    delay(500);
-  }
-  for(int i=7;i>=1;i--){
-    WriteData(START_ADDRESS_1);    
-    WriteData(SET_BRIGHTNESS);
-    WriteData((char)i);
-    Write("BRIGHTNESS ", 11);
-    char buffer [2];
-    itoa(i,buffer,10);    
-    Write(buffer,2);
-    delay(500);
-  }
-
-  delay(3000);
-  WriteData(CLEAR_SCREEN);
-  WriteData(WRAP_LTR);
-  WriteData(START_ADDRESS_1);   
-  Write("Now, try sending some data over the serial connection", 53, 150);
-  WriteData(SCROLL_LTR);
-  Write("                    ", 20, 150);
+  Write("ALastair", 8);
 }
 
+
+// https://hackaday.io/project/1546-vfd-ntp-clock/log/6009-code-snippets
+void sendbyte(uint8_t d_chr) {
+  unsigned char bit_cnt;
+  for(bit_cnt=0; bit_cnt<8; bit_cnt++) {
+    if(d_chr & 0x80) digitalWrite(dataPin,HIGH);
+    else digitalWrite(dataPin,LOW);
+    d_chr <<= 1;
+    digitalWrite(clockPin,LOW);
+    digitalWrite(clockPin,HIGH);
+  }
+}
+
+void Reset_VFD(void) {
+  digitalWrite ( resetPin, HIGH );
+  delay(10);
+  digitalWrite ( clockPin, HIGH);
+  digitalWrite ( resetPin, LOW );
+  delay(50);
+}
 
 void loop() {
   // Pass through any data typed via the serial monitor
