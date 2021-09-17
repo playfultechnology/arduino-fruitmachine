@@ -411,7 +411,7 @@ void loop() {
     case GameState::Spinning:
       if(buttons[2].fell()) {
         logMessage(F("Button 2 pressed"));
-        // Turn off this hold button
+        // Turn off this hold button lamp
         digitalWrite(relayOutPins[3], HIGH);
         // This code will stop the reel immediately
         //steppers[1].setSpeed(0);
@@ -427,7 +427,7 @@ void loop() {
       }
       if(buttons[3].fell()) {
         logMessage(F("Button 3 pressed"));
-        // Turn off this hold button
+        // Turn off this hold button lamp
         digitalWrite(relayOutPins[4], HIGH);
         //steppers[2].setSpeed(0);
         //steppers[2].stop();
@@ -440,7 +440,7 @@ void loop() {
       }
       if(buttons[4].fell()) {
         logMessage(F("Button 4 pressed"));
-        // Turn off this hold button
+        // Turn off this hold button lamp
         digitalWrite(relayOutPins[5], HIGH);        
         // steppers[3].setSpeed(0);
         // steppers[3].stop();

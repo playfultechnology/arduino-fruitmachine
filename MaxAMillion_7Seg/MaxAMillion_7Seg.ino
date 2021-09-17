@@ -38,6 +38,8 @@ unsigned long gameStartTime;
 unsigned long gameDuration = 60 * 60000; // 60 mins
 unsigned long gameDeductedTime;
 
+long timeRemaining;
+
 unsigned long lastUpdateTime;
 
 // The array of segments that should currently be lit
@@ -95,6 +97,7 @@ void Stop() {
 
 void Reset(){
   gameDeductedTime = 0;
+  timeRemaining = gameDuration;
   state = State::Inactive;
 }
 
@@ -110,10 +113,12 @@ void receiveEvent(int howMany) {
     byte c = Wire.read(); 
     Serial.print(c, HEX);
     switch(c){
-      case 0x00:
-        Reset();
-        break;
       case 0x01:
+        if(state != State::Active) {
+          Reset();
+        }
+        break;
+      case 0x00:
         if(state != State::Active) {
           Start();
         }
@@ -147,7 +152,7 @@ void loop() {
     // The time remaining is the total game duration, less the time spent during the
     // current period of play, less the time elapsed during any previous sessions
     // or other deductions
-    long timeRemaining = gameDuration - (currentTime - gameStartTime) - gameDeductedTime;
+    timeRemaining = gameDuration - (currentTime - gameStartTime) - gameDeductedTime;
 
     if(timeRemaining <= 0) {
       // Game Timer has run out
@@ -176,7 +181,18 @@ void loop() {
     }
   }
   else if(state == State::Inactive){
-    // Don't do anything to update the display
+     // Update clock display
+      int seconds = (timeRemaining / 1000)%60;
+      int minutes = timeRemaining / 60000;
+
+      uint8_t s2 = seconds%10;
+      segmentsToDisplay[3] = getSegments((char)s2+48);
+      uint8_t s1 = (seconds/10)%10;
+      segmentsToDisplay[2] = getSegments((char)s1+48);
+      uint8_t m2 = minutes%10;
+      segmentsToDisplay[1] = getSegments((char)m2+48) | 0b10000000;
+      uint8_t m1 = (minutes/10)%10;
+      segmentsToDisplay[0] = getSegments((char)m1+48);
   }
 
   // Loop over every digit
