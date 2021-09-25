@@ -136,6 +136,9 @@ void setup() {
   Serial.setTimeout(50); 
   Serial.println(__FILE__ __DATE__);
 
+  // Pause while we wait for all components to power up
+  delay(1000);
+
   // Loop over every reel
   for(int i=0; i<numReels; i++) {
 
@@ -152,7 +155,7 @@ void setup() {
     // So, for a reel with NUM_STEPS 48, setMaxSpeed(60), means (60*60/48)= 75RPM
     // steppers[i].setMaxSpeed(60);
     steppers[i].setMaxSpeed(stepperSpeeds[i]);    
-    steppers[i].setAcceleration(150);
+    steppers[i].setAcceleration(250);
   }
   // Initialise input buttons
   for(int i=0; i<numButtons; i++){
@@ -193,6 +196,9 @@ void setup() {
 
   // Calibrate reels to determine "zero" point
   CalibrateReels();
+
+  // Setup complete - advance to the next state
+  TransitionToAwaitingCoinState();
 }
 
 void StartCountdown() {
@@ -378,6 +384,7 @@ void loop() {
   }  
   else if(RCinputs[3].fell()) {
     logMessage(F("RC Channel 3 pressed"));
+    CalibrateReels();
   }
 
   // Update the VFD display by scrolling the current message
