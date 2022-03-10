@@ -201,13 +201,6 @@ void setup() {
   TransitionToAwaitingCoinState();
 }
 
-void StartCountdown() {
-  // Write command to slave
-  Wire.beginTransmission(slave7SegmentAddress);
-  Wire.write(0);
-  Wire.endTransmission();
-}
-
 /**
  * Reset procedure as described in 20RM_MK2_STI manual
  *
@@ -277,7 +270,6 @@ void CalibrateReels(){
   }
   Serial.println(F("Calibration complete"));
 }
-
 
 void UpdateVFD(){
   unsigned long now = millis();
@@ -349,33 +341,42 @@ void TransitionToSpinningState() {
   gameState = GameState::Spinning;
 }
 
+// The accelstepper run() function *must* be called continuously (even when you don't think the steppers have anything to do)
+// so that means using the regular delay() function is a no-no. 
+// This alternative method performs no program logic, but continues to execute the stepper updates for the specified
+// amount of time and is used in place of delay()
+void nonBlockingDelay(unsigned long wait){
+  unsigned long waitUntil = millis() + wait;
+  while(millis() < waitUntil){
+    for(int i=0; i<numReels; i++){
+      steppers[i].run();
+    }
+  }
+}
+
 void loop() {
   // INPUTS
-  // Update current state of all inputs
+  // Opto-sensors
   for(int i=0; i<numReels; i++) { optoSensors[i].update(); }
-  for(int i=0; i<numButtons; i++) { 
-    buttons[i].update(); 
-    /*
-    if(buttons[i].changed()) {
-      Serial.print("Button ");
-      Serial.print(i);
-      Serial.println(" changed");
-    }
-    */
-  }
+  // Buttons
+  for(int i=0; i<numButtons; i++) { buttons[i].update(); }
+  // RC buttons 
   for(int i=0; i<numRCs; i++) { RCinputs[i].update(); }
+  // Coin sensor
   coinSensor.update();
 
   // Timer control from RC
   if(RCinputs[0].fell()) {
     logMessage(F("RC Channel 0 pressed"));
-    Wire.beginTransmission(9);
+    // Start/stop countdown timer
+    Wire.beginTransmission(slave7SegmentAddress);
     Wire.write(0x00);
     Wire.endTransmission();
   }
   else if(RCinputs[1].fell()) {
     logMessage(F("RC Channel 1 pressed"));
-    Wire.beginTransmission(9);
+    // Reset the countdown timer
+    Wire.beginTransmission(slave7SegmentAddress);
     Wire.write(0x01);
     Wire.endTransmission();
   }  
@@ -502,10 +503,9 @@ void loop() {
           mp3.play(20);
           // Release maglock here
           digitalWrite(relayOutPins[7], LOW);
-          delay(250);
+          nonBlockingDelay(250);
           digitalWrite(relayOutPins[7], HIGH);
-          delay(500);
-          CalibrateReels();      
+          nonBlockingDelay(500);
           // Reset state
           TransitionToAwaitingCoinState();
         }
