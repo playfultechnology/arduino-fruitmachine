@@ -504,7 +504,8 @@ void loop() {
           digitalWrite(relayOutPins[7], LOW);
           delay(250);
           digitalWrite(relayOutPins[7], HIGH);
-          delay(5000);        
+          delay(500);
+          CalibrateReels();      
           // Reset state
           TransitionToAwaitingCoinState();
         }
