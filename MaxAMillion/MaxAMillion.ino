@@ -295,7 +295,7 @@ void UpdateVFD(){
 void TransitionToAwaitingCoinState() {
   vfd.clear();
   vfd.setCursor(0);
-  strcpy(message, "Welcome to CluedUp casino! Insert one quarter to play!         ");
+  strcpy(message, "Welcome to Clued Up casino! Insert one quarter to play!        ");
   // Set the lamps on for this state
   for(int i=0; i<8; i++){
     // bitRead is LSB (i.e. reads bits from the right-hand side), so we subtract from 7 to make line up with relay order
@@ -365,7 +365,7 @@ void loop() {
   // Coin sensor
   coinSensor.update();
 
-  // Timer control from RC
+  // "A" button on RC
   if(RCinputs[0].fell()) {
     logMessage(F("RC Channel 0 pressed"));
     // Start/stop countdown timer
@@ -373,16 +373,78 @@ void loop() {
     Wire.write(0x00);
     Wire.endTransmission();
   }
+  // "B" button on RC  
   else if(RCinputs[1].fell()) {
     logMessage(F("RC Channel 1 pressed"));
     // Reset the countdown timer
     Wire.beginTransmission(slave7SegmentAddress);
     Wire.write(0x01);
     Wire.endTransmission();
-  }  
+  } 
+  // "C" button on RC  
   else if(RCinputs[2].fell()) {
     logMessage(F("RC Channel 2 pressed"));
-  }  
+    // Solve the puzzle
+    for(int i=0; i<numReels; i++) {
+
+      // Enable the driver
+      digitalWrite(stepperEnablePins[i], LOW);
+    
+      // Store the current max speed
+      float maxSpeed = steppers[i].maxSpeed();
+    
+      // Set the stepper to a slower speed for calibration if desired
+      // Manual suggests calibrating at 50RPM
+      steppers[i].setMaxSpeed(50.0F/60.0F*NUM_STEPS);
+
+      // Set a target point several rotations away from the current position
+      steppers[i].move(NUM_STEPS*4);
+
+      // Process until we reach the target
+      while(steppers[i].distanceToGo() != 0) {
+        steppers[i].run();
+        optoSensors[i].update();
+        // Most opto-sensors go HIGH when an obstruction is detected
+        if(optoSensors[i].rose()) {
+          // Set current position to zero
+          steppers[i].setCurrentPosition(0);
+          // (following lines are unnecessary as setCurrentPosition instantaneously sets speed to 0 anyway.
+          //steppers[i].setSpeed(0);
+          //steppers[i].stop();
+          steppers[i].moveTo(3 * STEPS_PER_VALUE);
+      }
+    }
+    
+    // Now that calibration is complete, restore the normal max motor speed
+    steppers[i].setMaxSpeed(maxSpeed);
+
+    // Disable motor driver to conserve power
+    // digitalWrite(stepperEnablePins[i], HIGH);
+
+    // Play a sound effect
+    mp3.play(i+1);
+    
+    // Slight pause before calibrating next motor
+    delay(100);
+  }
+    
+    Serial.println("WINNNNNNNERRRRRR!!!!");
+    // Display a message
+    vfd.clear();
+    // Reset cursor to the first digit
+    vfd.setCursor(0);
+    vfd.print("WINNNERRRRR!!!");
+    // Play the "Winner" sound effect
+    mp3.play(20);
+    // Release maglock here
+    digitalWrite(relayOutPins[7], LOW);
+    nonBlockingDelay(500);
+    digitalWrite(relayOutPins[7], HIGH);
+    nonBlockingDelay(500);
+    // Reset state
+    TransitionToAwaitingCoinState();
+  }
+  // "D" button on RC  
   else if(RCinputs[3].fell()) {
     logMessage(F("RC Channel 3 pressed"));
     CalibrateReels();
@@ -500,10 +562,10 @@ void loop() {
           vfd.setCursor(0);
           vfd.print("WINNNERRRRR!!!");
           // Play the "Winner" sound effect
-          mp3.play(20);
+          mp3.play(20);  
           // Release maglock here
           digitalWrite(relayOutPins[7], LOW);
-          nonBlockingDelay(250);
+          nonBlockingDelay(500);
           digitalWrite(relayOutPins[7], HIGH);
           nonBlockingDelay(500);
           // Reset state
