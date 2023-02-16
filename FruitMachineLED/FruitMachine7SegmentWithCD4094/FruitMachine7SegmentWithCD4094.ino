@@ -37,7 +37,83 @@ void setup() {
   pinMode(dataPin, OUTPUT);
  // pinMode(oePin, OUTPUT);
  // digitalWrite(oePin, HIGH);
+
+  clear();
+  delay(2000);
+ pattern1();
 }
+
+void clear() {
+  // Set strobe pin low to begin storing bits 
+  digitalWrite(strobePin, LOW);
+  
+  for(int i=0; i<numDigits-1; i++) {
+    // Inverse logic so set all segments to 1 to turn them off
+    shiftOut(dataPin, clockPin, MSBFIRST, ~0);  
+  }
+  // Set strobe pin high to stop storing bits
+  digitalWrite(strobePin, HIGH);
+}
+
+void pattern1() {
+  // This function essentially recreates the functionality of shiftOut() but at the bit level rather 
+  // than 8-bit byte values https://forum.arduino.cc/t/shiftout-but-with-less-than-8-bits/17902/2
+  for(int y=0; y<(numDigits*8)-1; y++){
+    // Set strobe pin low to begin storing bits 
+    digitalWrite(strobePin, LOW);
+    // Send after padding, first!
+    for(int i=0;i<numDigits*8-y-1;i++){
+      digitalWrite(dataPin, HIGH);
+      digitalWrite(clockPin, HIGH);
+      digitalWrite(clockPin, LOW);
+    }
+    // Light one segment
+    digitalWrite(dataPin, LOW);
+    digitalWrite(clockPin, HIGH);
+    digitalWrite(clockPin, LOW);
+    // Send before padding after
+    for(int z=0;z<y;z++){
+      digitalWrite(dataPin, HIGH);
+      digitalWrite(clockPin, HIGH);
+      digitalWrite(clockPin, LOW);
+    }
+    // Set strobe pin high to stop storing bits
+    digitalWrite(strobePin, HIGH);
+    delay(50);
+  }
+
+/*
+    for (int m=0; m<n; m++) {
+      // Shift in the value to determine which segments of this digit will be lit
+      shiftOut(dataPin, clockPin, MSBFIRST, 1);  
+    }
+  */  
+  /*
+    for(int i=0; i<8; i++){
+      clear();
+      // Set strobe pin low to begin storing bits 
+      digitalWrite(strobePin, LOW);
+
+      // Shift in the value to determine which segments of this digit will be lit
+      shiftOut(dataPin, clockPin, MSBFIRST, ~1<<i);  
+
+  if (bitOrder == LSBFIRST)
+                  digitalWrite(dataPin, !!(val & (1 << i)));
+            else      
+                  digitalWrite(dataPin, !!(val & (1 << (7 - i))));
+                  
+            digitalWrite(clockPin, HIGH);
+            digitalWrite(clockPin, LOW);  
+      
+
+      // Set strobe pin high to stop storing bits
+      digitalWrite(strobePin, HIGH);
+      delay(200);
+    }
+  }
+  */
+}
+
 
 // Return the binary representation of the supplied character
 byte getSegments(char c) {
